@@ -4,6 +4,7 @@ Run:
   python restore.py coding          # reopen everything
   python restore.py coding --dry    # only print what it would do
 """
+import os
 import shutil
 import subprocess
 import sys
@@ -14,12 +15,13 @@ import win32con
 import win32gui
 
 import browser
+import docs
 import office
 import store
 import terminals
 from capture import app_id_of, list_windows
 from commands import app_name
-from items import kind
+from items import kind, without_time
 
 # Store apps all run inside this host, so its exe can't relaunch a specific app.
 # Python on its own opens nothing (and old parks may hold Stage's own popup).
@@ -85,7 +87,7 @@ def plan(snapshot, name=""):
         windows_of.setdefault(win.app, []).append(win)
     code_cmd = shutil.which("code")
     tabs = {}  # browser -> URLs to reopen together as one tab group
-    wanted_terminals, wanted_files = [], []
+    wanted_terminals, wanted_files, local_tabs = [], [], []
     handled_apps = set()
 
     def already_open(label, wins):
@@ -101,7 +103,10 @@ def plan(snapshot, name=""):
         if not w.get("keep", True):
             continue  # you dropped it when parking
         if kind(w) == "tab":
-            tabs.setdefault(w["browser"], []).append(w["url"])
+            if w["url"].startswith("file:"):  # extensions can't open local files: Stage does
+                local_tabs.append(w)
+            else:
+                tabs.setdefault(w["browser"], []).append(w["url"])
             continue
         if kind(w) == "terminal":
             wanted_terminals.append(w)
@@ -140,7 +145,7 @@ def plan(snapshot, name=""):
                 skipped.append(f"{w['title'][:40]} (can't start this app)")
 
         elif w["group"] == "TITLE":
-            skipped.append(f"{app} {w['title'][:40]} (files from titles come in step 7)")
+            skipped.append(f"{app_name(w)} {w['title'][:40]} (couldn't tell which file: not in Recent items)")
 
         else:
             skipped.append(f"{app} {w['title'][:40]} (no folder found)")
@@ -161,20 +166,36 @@ def plan(snapshot, name=""):
             actions.append((f"Terminal  {len(new)} tab{'s' if len(new) > 1 else ''}",
                             lambda n=new: terminals.open_all(n)))
 
-    # Office files: skip ones already open, reopen the rest at the same sheet/cell or slide
+    # Files: skip ones already open. Office ones reopen at the same sheet/cell or slide;
+    # others (a PDF in Edge, a .txt in Notepad) reopen in the same app.
     if wanted_files:
         open_paths = {f["path"].lower() for f in office.current()}
+        if any(f["app"] not in office.APPS for f in wanted_files):
+            recent = docs.recent_files()
+            for win in open_now:
+                found = docs.file_item({"app": win.app, "title": win.title, "exe": win.exe}, recent)
+                if found:
+                    open_paths.add(found["path"].lower())
         for f in wanted_files:
             if f["path"].lower() in open_paths:
                 skipped.append(f"{f['title']} (already open)")
+            elif not os.path.exists(f["path"]) and "://" not in f["path"]:
+                skipped.append(f"{f['title']} (the file isn't there any more)")
             else:
                 place = f" · {f['where_text']}" if f.get("where_text") else ""
-                actions.append((f"{app_name(f)}  {f['title']}{place}", lambda f=f: office.reopen(f)))
+                opener = office.reopen if f["app"] in office.APPS else docs.reopen
+                actions.append((f"{app_name(f)}  {f['title']}{place}", lambda f=f, o=opener: o(f)))
+
+    # Local files open in a browser tab (file:///…pdf): Stage opens them in that browser
+    for t in local_tabs:
+        exe = browser.browser_exe(t["browser"])
+        actions.append((f"{t['browser'].title()}  {t['title']}", lambda e=exe, u=t["url"]: subprocess.Popen([e, u])))
 
     open_tabs = browser.fresh_tabs({w.app for w in open_now})
     for name_of_browser, urls in tabs.items():
-        already = {t["url"] for win in open_tabs.get(name_of_browser, []) for t in win["tabs"]}
-        new = [u for u in dict.fromkeys(urls) if u not in already]  # no duplicates, nothing already open
+        # compare without YouTube start times: the same video open at another minute is still open
+        already = {without_time(t["url"]) for win in open_tabs.get(name_of_browser, []) for t in win["tabs"]}
+        new = [u for u in dict.fromkeys(urls) if without_time(u) not in already]  # no duplicates, nothing open
         if len(new) < len(urls):
             skipped.append(f"{len(urls) - len(new)} {name_of_browser} tab(s) (already open)")
         if new:

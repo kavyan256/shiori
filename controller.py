@@ -327,6 +327,12 @@ def cue_rows(found):
 
 def row_meta(item):
     """The small grey text at the end of a row."""
+    if kind(item) == "tab" and item.get("video_time", 0) > 5:
+        host = item["url"].split("/")[2].removeprefix("www.")
+        minutes, seconds = divmod(item["video_time"], 60)
+        hours, minutes = divmod(minutes, 60)
+        at = f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes}:{seconds:02}"
+        return f"{host} · at {at}"
     if kind(item) == "terminal":
         if not item["command"]:
             return ""

@@ -10,8 +10,10 @@ the extension reports), Windows Terminal's shells, and Office's open files. So y
 keep or drop each tab, terminal or file on its own.
 """
 from dataclasses import asdict
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import browser
+import docs
 import office
 import terminals
 from capture import list_windows
@@ -54,12 +56,30 @@ def current_items():
         window = {k: v for k, v in asdict(w).items() if k != "hwnd"}
         items.append({"kind": "window", **window, "keep": True})
 
+    # windows whose title names a file (a PDF in Edge, todo.txt in Notepad) become file items
+    if any(docs.name_from_title(i["title"], i["app"]) for i in items if i["app"] in docs.TITLE_APPS | docs.BROWSERS):
+        recent = docs.recent_files()
+        items = [docs.file_item(i, recent) or i for i in items]
+
     for name, browser_windows in tabs.items():
         items += tab_items(name, browser_windows)
     items += shells + files
     for item in items:
         item["keep"] = not usually_not_work(item)
     return items
+
+
+def with_time(url, seconds):
+    """A YouTube link that starts at this second: '…watch?v=x' -> '…watch?v=x&t=1390s'."""
+    parts = urlsplit(url)
+    query = [(k, v) for k, v in parse_qsl(parts.query) if k != "t"] + [("t", f"{seconds}s")]
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
+def without_time(url):
+    """The same link minus its start time, to tell whether a video is already open."""
+    parts = urlsplit(url)
+    return urlunsplit(parts._replace(query=urlencode([(k, v) for k, v in parse_qsl(parts.query) if k != "t"])))
 
 
 def tab_items(name, browser_windows):
@@ -69,9 +89,12 @@ def tab_items(name, browser_windows):
         for tab in win["tabs"]:
             if not tab.get("url") or tab["url"].startswith(SKIP_URLS):
                 continue
+            url, seconds = tab["url"], tab.get("time")
+            if seconds and seconds > 5:  # a video you'd started: resume there
+                url = with_time(url, seconds)
             out.append({
                 "kind": "tab", "browser": name, "app": browser.EXE[name], "window": number,
-                "title": tab.get("title") or tab["url"], "url": tab["url"],
+                "title": tab.get("title") or tab["url"], "url": url, "video_time": seconds or 0,
                 "pinned": tab.get("pinned", False), "tab_group": tab.get("group", ""), "keep": True,
             })
     for item in out:

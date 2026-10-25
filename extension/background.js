@@ -66,21 +66,35 @@ function reportSoon() {
   pending = setTimeout(report, 300);
 }
 
+// Where a YouTube video is, in whole seconds (null if not a video, or the tab is asleep)
+const YOUTUBE_VIDEO = /^https:\/\/(www\.|m\.)?youtube\.com\/watch/;
+async function videoTime(tab) {
+  if (!YOUTUBE_VIDEO.test(tab.url || "")) return null;
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => { const v = document.querySelector("video"); return v ? Math.floor(v.currentTime) : null; },
+    });
+    return result?.result ?? null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function report() {
   scanForRestores();
   const windows = await chrome.windows.getAll({ populate: true, windowTypes: ["normal"] });
   const groups = Object.fromEntries((await chrome.tabGroups.query({})).map(g => [g.id, g.title || ""]));
+  const describe = async t => ({ title: t.title, url: t.url, active: t.active, pinned: t.pinned,
+                                 group: t.groupId >= 0 ? groups[t.groupId] : "", time: await videoTime(t) });
   const body = {
     type: "report",
     browser: BROWSER,
-    windows: windows.map(w => ({
+    windows: await Promise.all(windows.map(async w => ({
       id: w.id,
       focused: w.focused,
-      tabs: w.tabs
-        .filter(t => t.url && !t.url.startsWith(STAGE))
-        .map(t => ({ title: t.title, url: t.url, active: t.active, pinned: t.pinned,
-                     group: t.groupId >= 0 ? groups[t.groupId] : "" })),
-    })),
+      tabs: await Promise.all(w.tabs.filter(t => t.url && !t.url.startsWith(STAGE)).map(describe)),
+    }))),
   };
   if (send(body)) return;
   connect();  // not linked yet: try, and send this one over plain HTTP meanwhile
