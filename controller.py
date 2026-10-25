@@ -96,7 +96,10 @@ class Controller:
     def start_draft(self, name="", note=""):
         browser.request_reports()  # exact tabs right now, not the last report
         self.draft = {"items": current_items(), "note": "", "steps": [], "name": name, "at": time.time()}
+        left_out = sum(1 for i in self.draft["items"] if not i["keep"])
         message = "Untick what you don't want, say a note, then “save as <name>”."
+        if left_out:
+            message = f"Left out {left_out} chat/music item{'s' if left_out > 1 else ''} · tick them if they belong."
         existing = store.load(name) if name else None
         if existing:  # "park coding": tick what belongs to coding, untick the rest
             name = self.draft["name"] = existing["name"]
@@ -146,6 +149,18 @@ class Controller:
         item = self.draft["items"][index]
         item["keep"] = not item["keep"]
         return self.draft_view()
+
+    def set_many(self, indexes, keep):
+        """A group's checkbox: tick or untick all its rows at once."""
+        if not self.draft:
+            return self.home()
+        for i in indexes:
+            self.draft["items"][i]["keep"] = keep
+        return self.draft_view()
+
+    def names(self):
+        """Park names, most recent first: the bar uses them for Tab-completion."""
+        return [s["name"] for s in store.list_stages()]
 
     def choose(self, what, keep):
         """'drop 3' / 'drop youtube' / 'keep 3'."""

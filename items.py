@@ -14,6 +14,21 @@ from capture import list_windows
 # Browser pages that can't (or shouldn't) be reopened
 SKIP_URLS = ("chrome://", "edge://", "about:", "chrome-extension://", "extension://", "devtools://")
 
+# Chat, music and calls are open all day, not part of a task: they start unticked
+# (you can still tick them). Matched against app names and website addresses.
+NEVER_PARK_APPS = {"whatsapp.exe", "discord.exe", "spotify.exe", "telegram.exe", "slack.exe",
+                   "ms-teams.exe", "teams.exe", "zoom.exe", "signal.exe"}
+NEVER_PARK_SITES = ("web.whatsapp.com", "discord.com", "open.spotify.com", "music.youtube.com",
+                    "web.telegram.org", "teams.microsoft.com", "netflix.com", "primevideo.com",
+                    "hotstar.com", "instagram.com", "messenger.com")
+
+
+def usually_not_work(item):
+    if item["app"] in NEVER_PARK_APPS:
+        return True
+    url = item.get("url", "")
+    return any(f"//{site}" in url or f".{site}" in url for site in NEVER_PARK_SITES)
+
 
 def current_items():
     windows = list_windows()
@@ -29,6 +44,8 @@ def current_items():
 
     for name, browser_windows in tabs.items():
         items += tab_items(name, browser_windows)
+    for item in items:
+        item["keep"] = not usually_not_work(item)
     return items
 
 
@@ -44,6 +61,8 @@ def tab_items(name, browser_windows):
                 "title": tab.get("title") or tab["url"], "url": tab["url"],
                 "pinned": tab.get("pinned", False), "tab_group": tab.get("group", ""), "keep": True,
             })
+    for item in out:
+        item["keep"] = not usually_not_work(item)
     return out
 
 

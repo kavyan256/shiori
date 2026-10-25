@@ -4,114 +4,201 @@
 <meta charset="utf-8">
 <title>Stage</title>
 <style>
+  /* ---- tokens ------------------------------------------------------------------ */
   :root {
-    --bg: #15171c; --panel: #1f222a; --raised: #262a34; --line: #2e323d;
-    --text: #e9e9ee; --muted: #8b90a0; --accent: #7aa2f7; --ok: #9ece6a; --danger: #f7768e;
+    --bg: #14161b; --panel: #1d2027; --raised: #252933; --line: #2c303a; --line-strong: #3a3f4b;
+    --text: #ebebf0; --muted: #8b90a0; --faint: #5d6270;
+    --accent: #7aa2f7; --accent-soft: rgba(122, 162, 247, .16); --ok: #9ece6a; --danger: #f7768e;
     --radius: 12px;
+    --fast: 120ms; --base: 180ms; --slow: 260ms;
+    --ease: cubic-bezier(.2, .8, .2, 1);           /* quick start, soft landing */
+    --spring: cubic-bezier(.34, 1.56, .64, 1);     /* small overshoot for pops */
+    --countdown: 1200ms;                           /* must match AUTO_RUN_MS */
   }
   @media (prefers-color-scheme: light) {
-    :root { --bg: #f7f7f9; --panel: #ffffff; --raised: #eef0f4; --line: #e1e3ea;
-            --text: #1d1f24; --muted: #6b7080; --accent: #3d6fe0; --ok: #3f8f2f; --danger: #c93a52; }
+    :root { --bg: #f6f7f9; --panel: #ffffff; --raised: #eceef3; --line: #e1e4ea; --line-strong: #cfd3dc;
+            --text: #1b1d22; --muted: #686d7c; --faint: #a3a7b3;
+            --accent: #3567e0; --accent-soft: rgba(53, 103, 224, .12); --ok: #2f8a3a; --danger: #c93a52; }
   }
+  /* Windows "show animations" off: keep changes instant */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important;
+                             transition-duration: 1ms !important; }
+  }
+
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); overflow: hidden;
                font: 14px "Segoe UI Variable Text", "Segoe UI", sans-serif; user-select: none; }
-  .wrap { padding: 14px 16px 16px; }
+  .wrap { padding: 12px 14px 14px; }
+  .wrap.opening { animation: open var(--base) var(--ease); }
+  @keyframes open { from { opacity: 0; transform: translateY(-8px) scale(.985); } }
 
-  header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .logo { width: 18px; height: 18px; border-radius: 6px; background: var(--accent); color: var(--bg);
-          font: 700 12px/18px "Segoe UI"; text-align: center; }
-  .brand { font-weight: 600; }
-  .hint { margin-left: auto; color: var(--muted); font-size: 12px; }
-  kbd { font: 11px "Segoe UI"; padding: 1px 5px; border-radius: 4px; background: var(--raised); border: 1px solid var(--line); }
+  /* ---- header ---------------------------------------------------------------------- */
+  header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; height: 20px; }
+  .logo { width: 20px; height: 20px; border-radius: 6px; background: var(--accent); color: var(--bg);
+          font: 700 12px/20px "Segoe UI"; text-align: center; }
+  .brand { font-weight: 600; letter-spacing: .01em; }
+  #status { margin-left: auto; color: var(--muted); font-size: 12px; transition: color var(--base); }
+  #status.live { color: var(--accent); }
+  kbd { font: 11px "Segoe UI"; padding: 0 5px; border-radius: 4px; background: var(--raised); border: 1px solid var(--line); }
 
-  .ask { color: var(--accent); font-size: 13px; margin: 0 0 6px; display: none; }
-  textarea { width: 100%; resize: none; border: 1px solid var(--line); outline: 0; border-radius: var(--radius);
-             padding: 11px 14px; background: var(--panel); color: var(--text); height: 48px; max-height: 110px;
-             font: 17px "Segoe UI Variable Display", "Segoe UI", sans-serif; transition: border-color .15s; }
-  textarea:focus { border-color: var(--accent); }
-  textarea::placeholder { color: var(--muted); }
+  /* ---- input ---------------------------------------------------------------------- */
+  .ask { color: var(--accent); font-size: 13px; margin: 0 0 6px; animation: rise var(--base) var(--ease); }
+  .field { position: relative; border-radius: var(--radius); }
+  textarea { display: block; width: 100%; resize: none; outline: 0; border-radius: var(--radius);
+             border: 1px solid var(--line); background: var(--panel); color: var(--text);
+             padding: 11px 14px; height: 46px; max-height: 110px; overflow: hidden;
+             font: 17px "Segoe UI Variable Display", "Segoe UI", sans-serif;
+             transition: border-color var(--base), box-shadow var(--base); }
+  textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  textarea::placeholder { color: var(--faint); }
+  /* the auto-run countdown: a 2px line that fills while Stage waits after a paste */
+  .countdown { position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; border-radius: 2px; overflow: hidden; }
+  .countdown i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 160ms var(--ease); }
+  .field.counting .countdown i { width: 100%; transition: width var(--countdown) linear; }
+  /* indeterminate line while Python works */
+  .field.busy .countdown i { width: 35%; animation: slide 900ms var(--ease) infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
 
-  .status { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-  .status:not(:has(> :not(.hidden))) { display: none; }
-  .chip { padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 18%, transparent);
-          color: var(--accent); font-size: 12px; font-weight: 600; }
-  .busy { color: var(--muted); font-size: 12px; }
-  .hidden { display: none !important; }
+  .status-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: 0; }
+  .status-row:empty { display: none; }
+  .chip { padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+          font-size: 12px; font-weight: 600; }
+  .chip.pop { animation: pop 220ms var(--spring); }
+  @keyframes pop { from { transform: scale(.82); opacity: 0; } }
 
-  section { margin-top: 10px; animation: in .14s ease-out; }
-  @keyframes in { from { opacity: 0; transform: translateY(-3px); } }
-  h2 { font: 600 16px "Segoe UI Variable Display", "Segoe UI"; margin: 2px 0 8px; display: flex; gap: 8px; align-items: baseline; }
+  /* ---- views ------------------------------------------------------------------------ */
+  section { margin-top: 12px; }
+  section.enter { animation: rise var(--base) var(--ease); }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+  .stagger > * { animation: rise var(--base) var(--ease) backwards; animation-delay: calc(min(var(--i, 0), 12) * 18ms); }
+
+  h2 { font: 600 16px "Segoe UI Variable Display", "Segoe UI"; margin: 0 0 8px; display: flex; gap: 8px; align-items: center; }
   h2 .sub { font: 400 12px "Segoe UI"; color: var(--muted); }
-  h2 .draft-tag { font: 600 11px "Segoe UI"; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 7px; }
-  .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin: 12px 0 5px; }
+  .tag { font: 600 11px "Segoe UI"; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 7px; }
+  .badge { font: 600 11px "Segoe UI"; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 8px; }
+  .label { color: var(--muted); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; margin: 12px 0 4px; }
+  .msg { margin-top: 8px; font-size: 12px; color: var(--ok); animation: rise var(--base) var(--ease); }
+  .warn { margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .foot { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 
   .note { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
-  .note p { margin: 0 0 6px; font-size: 15px; line-height: 1.4; }
+  .note p { margin: 0 0 6px; font-size: 15px; line-height: 1.45; }
   .note p:last-child { margin: 0; }
-  .note .empty { color: var(--muted); font-style: italic; font-size: 13px; }
+  .note .empty { color: var(--muted); font-size: 13px; font-style: italic; }
   .step { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
   .box { width: 14px; height: 14px; border: 1.5px solid var(--muted); border-radius: 4px; flex: none; }
 
-  .scroll { max-height: 290px; overflow-y: auto; margin-right: -6px; padding-right: 6px; }
-  .rows { display: flex; flex-direction: column; gap: 1px; }
-  .row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; cursor: pointer; }
-  .row:hover, .row.sel { background: var(--raised); }
+  /* rows */
+  .scroll { max-height: 300px; overflow-y: auto; margin-right: -6px; padding-right: 6px; }
+  .scroll::-webkit-scrollbar { width: 6px; } .scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+  .row { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px;
+         cursor: pointer; transition: background var(--fast); }
+  .row:hover { background: var(--raised); }
+  .row.sel { background: var(--raised); box-shadow: inset 2px 0 0 var(--accent); }
   .row.static { cursor: default; } .row.static:hover { background: none; }
-  .row .num { color: var(--muted); width: 18px; text-align: right; font-size: 12px; flex: none; }
-  .row .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .num { color: var(--faint); width: 18px; text-align: right; font-size: 11px; flex: none; }
+  .row .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 0 1px;
+                transition: color var(--base), background-size var(--base) var(--ease); }
   .row .meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
-  .row.off .title, .row.off .avatar { opacity: .4; }
-  .row.off .title { text-decoration: line-through; }
-  .avatar { width: 20px; height: 20px; border-radius: 6px; flex: none; color: #fff;
-            font: 700 10px/20px "Segoe UI"; text-align: center; }
-  .check { width: 16px; height: 16px; border-radius: 5px; flex: none; border: 1.5px solid var(--muted);
-           display: grid; place-items: center; font-size: 11px; color: var(--bg); }
-  .row:not(.off) .check { background: var(--accent); border-color: var(--accent); }
-  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-  .badge { font: 600 11px "Segoe UI"; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
-           border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
+  .row.off .title { color: var(--faint); background-size: 100% 1px; }   /* strike-through draws left to right */
+  .row.off .avatar { opacity: .4; }
+  .row.flash { animation: flash 480ms var(--ease); }
+  @keyframes flash { 0%, 40% { background: var(--accent-soft); } }
+  .avatar { width: 20px; height: 20px; border-radius: 6px; flex: none; font: 700 10px/20px "Segoe UI"; text-align: center;
+            transition: opacity var(--base); }
 
-  .msg { margin-top: 8px; font-size: 12px; color: var(--ok); }
-  .warn { margin-top: 8px; font-size: 12px; color: var(--muted); }
-  .foot { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-  .actions { display: flex; gap: 8px; margin-top: 12px; }
+  .check { width: 16px; height: 16px; border-radius: 5px; flex: none; border: 1.5px solid var(--faint);
+           display: grid; place-items: center; transition: background var(--fast), border-color var(--fast); }
+  .check svg { width: 10px; height: 10px; stroke: var(--bg); stroke-width: 3; fill: none; stroke-linecap: round;
+               stroke-dasharray: 14; stroke-dashoffset: 14; transition: stroke-dashoffset var(--base) var(--ease); }
+  .row:not(.off) .check, .gcheck.all { background: var(--accent); border-color: var(--accent); }
+  .row:not(.off) .check svg, .gcheck.all svg { stroke-dashoffset: 0; }
+  .gcheck.some { border-color: var(--accent); }
+  .gcheck.some::after { content: ""; width: 7px; height: 2px; background: var(--accent); border-radius: 1px; }
+  .row.flash .check { animation: pop 240ms var(--spring); }
+
+  /* collapsible groups */
+  .ghead { display: flex; align-items: center; gap: 8px; padding: 8px 10px 4px; color: var(--muted); font-size: 11px;
+           letter-spacing: .05em; text-transform: uppercase; cursor: pointer; }
+  .chev { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2.4; fill: none; transition: transform var(--base) var(--ease); }
+  .group.collapsed .chev { transform: rotate(-90deg); }
+  .ghead .count { margin-left: auto; text-transform: none; letter-spacing: 0; }
+  .grows { display: grid; grid-template-rows: 1fr; transition: grid-template-rows var(--base) var(--ease); }
+  .grows > div { overflow: hidden; }
+  .group.collapsed .grows { grid-template-rows: 0fr; }
+
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+  /* buttons and pills */
+  .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   button { font: 600 13px "Segoe UI"; border: 1px solid var(--line); background: var(--raised); color: var(--text);
-           padding: 6px 14px; border-radius: 8px; cursor: pointer; }
+           padding: 6px 14px; border-radius: 9px; cursor: pointer; transition: border-color var(--fast), transform var(--fast); }
   button:hover { border-color: var(--accent); }
+  button:active { transform: scale(.97); }
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
   button.danger { color: var(--danger); }
+  button.danger.primary { background: var(--danger); border-color: var(--danger); color: var(--bg); }
   .pills { display: flex; flex-wrap: wrap; gap: 6px; }
-  .pill { padding: 3px 9px; border-radius: 999px; background: var(--raised); font-size: 12px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+          background: var(--raised); font-size: 12px; }
+  .spin { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--faint); border-top-color: var(--accent);
+          animation: turn 700ms linear infinite; }
+  @keyframes turn { to { transform: rotate(360deg); } }
+  .pill.done .spin { display: none; }
+  .pill .ok { display: none; color: var(--ok); }
+  .pill.done .ok { display: inline; animation: pop 220ms var(--spring); }
+
+  /* "Saved" tick that draws itself */
+  .tick { width: 22px; height: 22px; flex: none; }
+  .tick circle { fill: none; stroke: var(--ok); stroke-width: 2; }
+  .tick path { fill: none; stroke: var(--ok); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 16;
+               stroke-dashoffset: 16; animation: draw var(--slow) var(--ease) 80ms forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
   details { margin-top: 8px; color: var(--muted); font-size: 12px; }
-  details summary { cursor: pointer; }
-  details div { margin: 4px 0 0 14px; }
-  .empty-state { color: var(--muted); padding: 6px 2px; line-height: 1.6; }
-  .version { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  details summary { cursor: pointer; list-style: none; }
+  details summary::before { content: "▸ "; } details[open] summary::before { content: "▾ "; }
+  details > div { margin: 4px 0 0 14px; }
+  .empty-state { color: var(--muted); padding: 6px 2px; line-height: 1.7; }
+  .empty-state b { color: var(--text); font-weight: 600; }
 </style>
 </head>
 <body>
 <div class="wrap" id="wrap">
   <header>
     <div class="logo">S</div><div class="brand">Stage</div>
-    <div class="hint">Hold <kbd>Ctrl</kbd><kbd>Win</kbd> to speak · <kbd>Esc</kbd></div>
+    <div id="status">Hold <kbd>Ctrl</kbd><kbd>Win</kbd> to speak · or type</div>
   </header>
-  <div class="ask" id="ask"></div>
-  <textarea id="q" spellcheck="false"></textarea>
-  <div class="status"><span class="chip hidden" id="chip"></span><span class="busy hidden" id="busy"></span></div>
+  <div class="ask" id="ask" hidden></div>
+  <div class="field" id="field">
+    <textarea id="q" spellcheck="false" rows="1"></textarea>
+    <div class="countdown"><i></i></div>
+  </div>
+  <div class="status-row" id="chips"></div>
   <div id="view"></div>
 </div>
 
 <script>
+const AUTO_RUN_MS = 1200;  // wait after Wispr pastes before running (keep in sync with --countdown)
 const $ = id => document.getElementById(id);
-const q = $("q"), view = $("view");
-let state = { view: "home", parks: [] }, selected = 0, autoRun = null, busy = false;
+const q = $("q"), view = $("view"), field = $("field");
+let state = { view: "" }, autoRun = null, busy = false, cursor = -1;
+let lastKeep = new Map();        // row index -> ticked, to animate only rows that changed
+const collapsed = new Set();     // group labels you folded away
+let parkNames = [], tabCycle = null;
+const STATUS_IDLE = 'Hold <kbd>Ctrl</kbd><kbd>Win</kbd> to speak · or type';
 
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const hue = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
-const color = s => `hsl(${hue(s)} 55% 52%)`;
-const avatar = app => `<div class="avatar" style="background:${color(app)}">${esc(app[0] || "?").toUpperCase()}</div>`;
+const color = s => `hsl(${hue(s)} 60% 55%)`;
+const avatar = name => `<div class="avatar" style="background:hsl(${hue(name)} 60% 55% / .18);color:hsl(${hue(name)} 60% 50%)">${esc(name[0] || "?").toUpperCase()}</div>`;
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const CHECK = '<svg viewBox="0 0 12 12"><path d="M2.5 6.5l2.2 2.2L9.5 3.8"/></svg>';
+const CHEVRON = '<svg class="chev" viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3"/></svg>';
+
+function setStatus(html, live = false) { $("status").innerHTML = html; $("status").classList.toggle("live", live); }
 
 // ---- talking to Python -------------------------------------------------------
 async function call(name, ...args) {
@@ -121,118 +208,152 @@ async function call(name, ...args) {
 }
 function setBusy(text) {
   busy = !!text;
-  $("busy").textContent = text;
-  $("busy").classList.toggle("hidden", !text);
+  field.classList.toggle("busy", busy);
+  if (text) setStatus(text, true); else if (!autoRun) setStatus(STATUS_IDLE);
 }
 function busyText(text) {
-  const verb = (text.match(/^\s*(\w+)/) || [])[1]?.toLowerCase();
+  const verb = (text.match(/^\s*(?:let'?s\s+)?(\w+)/i) || [])[1]?.toLowerCase();
   return { park: "Looking at what's open…", resume: "Opening…", retrieve: "Opening…", restore: "Opening…",
            start: "Opening…", launch: "Opening…", save: "Saving…" }[verb] || "Working…";
 }
 
-// ---- the live chip: what will happen if this runs -------------------------------
+// ---- the live chip: what will happen if this runs ------------------------------
 function intent(text) {
-  const t = text.trim();
+  const t = text.trim().replace(/^(?:(?:ok(?:ay)?|so|please|now|let'?s|can you|could you)[\s,]+)+/i, "");
   if (!t) return "";
   if (state.view === "ask") return `Name → ${t}`;
   if (state.view === "confirm") return /^(yes|yeah|yep|confirm|sure|ok)/i.test(t) ? `Delete ${state.name}` : `Keep ${state.name}`;
   let m;
   if (state.view === "draft") {
     if ((m = t.match(/^(drop|remove|skip|untick|keep|add|tick)\s+(.+)/i))) return `${/^(keep|add|tick)/i.test(m[1]) ? "Keep" : "Drop"} → ${m[2]}`;
-    if ((m = t.match(/^(?:(?:done|finished)[\s,.]+)?(?:save|name it|call it)(?:\s+(?:it|this))?(?:\s+(?:as|called))?\s*([^.!?]*)/i))) return `Save as → ${m[1].trim() || state.name || "…"}`;
+    if ((m = t.match(/^(?:(?:done|finished)[\s,.]+)?(?:save|name it|call it)\b(.*)/i))) {
+      const name = m[1].split(/\s(?:as|called|named)\s/i).pop().replace(/^\s*(?:it|this|park)\s*/i, "").trim();
+      return `Save as → ${name || state.name || "…"}`;
+    }
     if (/^(cancel|discard)/i.test(t)) return "Cancel this park";
-    if (/^(show|list|resume|view|open)\b/i.test(t)) return "";
+    if (/^(show|list|resume|view|open|start)\b/i.test(t)) return "";
     return "Note";
   }
-  if (/^(list|parks|(show|see|view)( me)?( all)? (my |the )?parks|my parks)\b/i.test(t)) return "Show parks";
+  if (/^(list|parks|parts|(show|see|view)(ing)?( me)?( all)? (my |the )?(parks|parts)|my (parks|parts))\b/i.test(t)) return "Show parks";
   if ((m = t.match(/^(?:park|new park)\b[\s.,:;!?]*([^.,:;!?\n]*)/i))) return `New park${m[1].trim() ? " → " + m[1].trim() : ""}`;
   if ((m = t.match(/^unpin\s+([^.,:;!?\n]+)/i))) return `Unpin → ${m[1].trim()}`;
-  if ((m = t.match(/^pin\b(?:\s+(?:this|it))?\s*([^.,:;!?\n]*)/i))) return `📌 Pin → ${m[1].trim() || state.name || "this park"}`;
-  if ((m = t.match(/^(?:start|launch|set ?up|fire up)\s+([^.,:;!?\n]+)/i))) return `▶ Start → ${m[1].trim()}`;
+  if ((m = t.match(/^pin\b(?:\s+(?:this|it))?\s*([^.,:;!?\n]*)/i))) return `Pin → ${m[1].trim() || state.name || "this park"}`;
+  if ((m = t.match(/^(?:start|launch|set ?up|fire up)\s+([^.,:;!?\n]+)/i))) return `Start → ${m[1].trim()}`;
   if ((m = t.match(/^(?:resume|retrieve|restore|back to|continue|switch to|open)\s+([^.,:;!?\n]+)/i))) return `Resume → ${m[1].trim()}`;
   if ((m = t.match(/^(?:delete|trash|forget|remove)\s+([^.,:;!?\n]+)/i))) return `Delete → ${m[1].trim()}`;
   if ((m = t.match(/^(?:view|show|see|look at)\s+([^.,:;!?\n]+)/i))) return `View → ${m[1].trim()}`;
   return "";
 }
+let lastChip = "";
 function updateChip() {
   const label = intent(q.value);
-  $("chip").textContent = label;
-  $("chip").classList.toggle("hidden", !label);
+  if (label === lastChip) return;
+  lastChip = label;
+  $("chips").innerHTML = label ? `<span class="chip pop">${esc(label)}</span>` : "";
+  fit();
 }
 
-// ---- drawing each view ---------------------------------------------------------
+// ---- pieces shared by views ---------------------------------------------------------
 function noteBlock(note, steps, emptyText = "No note") {
   const lines = note ? `<p>${esc(note)}</p>` : `<p class="empty">${esc(emptyText)}</p>`;
   const list = (steps || []).map(s => `<div class="step"><span class="box"></span>${esc(s)}</div>`).join("");
   return `<div class="note">${lines}${list}</div>`;
 }
 
-function itemGroups(groups, clickable) {
-  return groups.map(g => `<div class="label">${esc(g.label)} · ${g.items.filter(i => i.keep).length}${clickable ? " of " + g.items.length : ""}</div>
-    <div class="rows">${g.items.map(it => `<div class="row ${it.keep ? "" : "off"} ${clickable ? "" : "static"}" ${clickable ? `data-toggle="${it.i}"` : ""}>
-      ${clickable ? `<span class="check">${it.keep ? "✓" : ""}</span>` : ""}${it.n ? `<span class="num">${it.n}</span>` : ""}
-      ${avatar(it.tab ? (it.host || it.app) : it.app)}
-      <span class="title">${it.tab ? "" : `${esc(it.app)} — `}${esc(it.title)}</span>
-      ${it.tab && it.host ? `<span class="meta">${esc(it.host.replace(/^www\./, ""))}</span>` : ""}</div>`).join("")}</div>`).join("");
+function row(it, clickable) {
+  const icon = it.tab ? (it.host || it.app) : it.app;
+  return `<div class="row ${it.keep ? "" : "off"} ${clickable ? "" : "static"}" ${clickable ? `data-toggle="${it.i}" data-nav` : ""}>
+    ${clickable ? `<span class="check">${CHECK}</span>` : ""}${it.n ? `<span class="num">${it.n}</span>` : ""}
+    ${avatar(icon)}<span class="title">${it.tab ? "" : `${esc(it.app)} — `}${esc(it.title)}</span>
+    ${it.tab && it.host ? `<span class="meta">${esc(it.host.replace(/^www\./, ""))}</span>` : ""}</div>`;
 }
 
+function groupsBlock(groups, clickable) {
+  return groups.map(g => {
+    const on = g.items.filter(i => i.keep).length;
+    const mark = on === g.items.length ? "all" : on ? "some" : "";
+    return `<div class="group ${collapsed.has(g.label) ? "collapsed" : ""}" data-group="${esc(g.label)}">
+      <div class="ghead" data-collapse="${esc(g.label)}">${CHEVRON}
+        ${clickable ? `<span class="check gcheck ${mark}" data-groupcheck="${esc(g.label)}" title="Tick or untick all">${CHECK}</span>` : ""}
+        <span>${esc(g.label)}</span><span class="count">${clickable ? `${on} of ${g.items.length}` : g.items.length}</span></div>
+      <div class="grows"><div>${g.items.map(it => row(it, clickable)).join("")}</div></div></div>`;
+  }).join("");
+}
+
+// ---- each view ---------------------------------------------------------------------
 const views = {
   home(s) {
     const msg = s.message ? `<div class="msg">${esc(s.message)}</div>` : "";
     const draft = s.draft ? `<div class="foot">You have an unsaved park. Say “park” to go back to it.</div>` : "";
-    if (!s.parks.length) return `<section>${msg}<div class="empty-state">No parks yet.<br>Say <b>“Park”</b> to save what's open right now.</div>${draft}</section>`;
-    selected = Math.min(selected, s.parks.length - 1);
-    return `<section>${msg}<div class="label">Your parks · click to view · ↑↓ Enter to resume</div><div class="scroll"><div class="rows">${
-      s.parks.map((p, i) => `<div class="row ${i === selected ? "sel" : ""}" data-say="view ${esc(p.name)}">
+    if (!s.parks.length) return `<section>${msg}<div class="empty-state">Nothing parked yet.<br>
+      Say <b>“Park”</b> to save what's open, drop what you don't need, then <b>“save as coding”</b>.<br>
+      Later: <b>“resume coding”</b>.</div>${draft}</section>`;
+    return `<section>${msg}<div class="label">Your parks · ↑↓ Enter to resume · click to view</div>
+      <div class="scroll stagger">${s.parks.map((p, i) => `<div class="row" style="--i:${i}" data-say="view ${esc(p.name)}" data-nav data-name="${esc(p.name)}">
         <span class="dot" style="background:${color(p.name)}"></span>
-        <span class="title"><b>${esc(p.name)}</b>${p.preset ? ` <span class="badge">📌 preset</span>` : ""}${p.next ? ` <span class="meta">· next: ${esc(p.next)}</span>` : ""}</span>
-        <span class="meta">${esc(p.ago)} · ${plural(p.items, "item")}${p.versions > 1 ? ` · ${p.versions} versions` : ""}</span></div>`).join("")
-    }</div></div>${draft}</section>`;
+        <span class="title"><b>${esc(p.name)}</b>${p.preset ? ` <span class="badge">preset</span>` : ""}${p.next ? ` <span class="meta">· next: ${esc(p.next)}</span>` : ""}</span>
+        <span class="meta">${esc(p.ago)} · ${plural(p.items, "item")}${p.versions > 1 ? ` · ${p.versions} versions` : ""}</span></div>`).join("")}
+      </div>${draft}</section>`;
   },
+
   draft(s) {
     const total = s.groups.reduce((n, g) => n + g.items.length, 0);
     const kept = s.groups.reduce((n, g) => n + g.items.filter(i => i.keep).length, 0);
-    return `<section><h2>New park ${s.name ? `<span class="sub">→ ${esc(s.name)}</span>` : ""}<span class="draft-tag">not saved</span></h2>
+    return `<section><h2>New park ${s.name ? `<span class="sub">→ ${esc(s.name)}</span>` : ""}<span class="tag">not saved</span></h2>
       ${noteBlock(s.note, s.steps, "No note yet. Say what you were doing and what's next.")}
-      <div class="scroll">${itemGroups(s.groups, true)}</div>
-      ${s.no_tabs.length ? `<div class="warn">${esc(s.no_tabs.join(" and "))} tabs aren't listed one by one, only the tab in front. Add the Stage extension to ${esc(s.no_tabs.join(" / "))} to pick tabs.</div>` : ""}
+      <div class="scroll stagger-rows">${groupsBlock(s.groups, true)}</div>
+      ${s.no_tabs.length ? `<div class="warn">${esc(s.no_tabs.join(" and "))} shows only the tab in front. Add the Stage extension to pick tabs.</div>` : ""}
       ${s.message ? `<div class="msg">${esc(s.message)}</div>` : ""}
-      <div class="actions"><button class="primary" data-say="save">Save · ${kept} of ${total}</button><button data-say="cancel">Cancel</button></div>
-      <div class="foot">“drop 3” · “drop youtube” · say your note · “save as coding”</div></section>`;
+      <div class="actions"><button class="primary" data-say="save">Save ${kept} of ${total}</button><button data-say="cancel">Cancel</button></div>
+      <div class="foot">“drop 3” · “drop youtube” · say your note · “save as coding” · ↑↓ Space to tick</div></section>`;
   },
+
   ask(s) { return ""; },
+
   park(s) {
-    const versions = s.versions.length ? `<details><summary>${plural(s.versions.length, "older version")}</summary>${
-      s.versions.map(v => `<div class="version">${esc(v.ago)} — ${esc(v.note || "no note")}</div>`).join("")}</details>` : "";
+    const saved = /^Saved/.test(s.message || "");
+    const total = s.groups.reduce((n, g) => n + g.items.length, 0);
     const pinnedCount = s.pinned.reduce((n, g) => n + g.items.length, 0);
-    const pinned = pinnedCount ? `<details><summary>📌 Preset: ${plural(pinnedCount, "pinned item")} open on “start ${esc(s.name)}”</summary>
-      ${itemGroups(s.pinned, false)}</details>` : "";
+    const title = saved
+      ? `<h2><svg class="tick" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M7 12.5l3.2 3.2L17 9"/></svg>Saved ${esc(s.name)}</h2>`
+      : `<h2><span class="dot" style="background:${color(s.name)}"></span>${esc(s.name)} <span class="sub">parked ${esc(s.ago)}</span>
+         ${pinnedCount ? `<span class="badge">preset</span>` : ""}</h2>`;
+    const message = s.message && !saved ? `<div class="msg" style="margin:-2px 0 8px">${esc(s.message)}</div>` : "";
+    // after saving, the long list folds into one line per group; the full list is a click away
+    const items = saved
+      ? `<div class="pills stagger" style="margin-top:10px">${s.groups.map((g, i) => `<span class="pill" style="--i:${i}">${esc(g.label)} · ${g.items.length}</span>`).join("")}</div>
+         <details><summary>Show the ${plural(total, "saved item")}${esc((s.message.match(/· version \d+/) || [""])[0].replace("·", " ·"))}</summary>${groupsBlock(s.groups, false)}</details>`
+      : `<div class="scroll">${groupsBlock(s.groups, false)}</div>`;
+    const pinned = pinnedCount ? `<details><summary>Preset: ${plural(pinnedCount, "pinned item")} open on “start ${esc(s.name)}”</summary>
+      ${groupsBlock(s.pinned, false)}</details>` : "";
+    const versions = s.versions.length ? `<details><summary>${plural(s.versions.length, "older version")}</summary>${
+      s.versions.map(v => `<div>${esc(v.ago)} — ${esc(v.note || "no note")}</div>`).join("")}</details>` : "";
     const buttons = pinnedCount
-      ? `<button class="primary" data-say="start ${esc(s.name)}">▶ Start preset</button><button data-say="resume ${esc(s.name)}">Resume last park</button>
-         <button data-say="pin ${esc(s.name)}">Re-pin</button>`
-      : `<button class="primary" data-say="resume ${esc(s.name)}">Resume</button><button data-say="pin ${esc(s.name)}">📌 Pin as preset</button>`;
-    return `<section><h2><span class="dot" style="background:${color(s.name)}"></span>${esc(s.name)} <span class="sub">parked ${esc(s.ago)}</span>
-        ${pinnedCount ? `<span class="badge">📌 preset</span>` : ""}</h2>
-      ${s.message ? `<div class="msg" style="margin:-4px 0 8px">${esc(s.message)}</div>` : ""}
-      ${noteBlock(s.note, s.steps)}<div class="scroll">${itemGroups(s.groups, false)}</div>${pinned}${versions}
+      ? `<button class="primary" data-say="start ${esc(s.name)}">Start preset</button><button data-say="resume ${esc(s.name)}">Resume last park</button>`
+      : `<button class="primary" data-say="resume ${esc(s.name)}">Resume</button><button data-say="pin ${esc(s.name)}">Pin as preset</button>`;
+    return `<section>${title}${message}${noteBlock(s.note, s.steps)}${items}${pinned}${versions}
       <div class="actions">${buttons}<button data-say="list">All parks</button>
       <button class="danger" data-say="delete ${esc(s.name)}">Delete</button></div></section>`;
   },
+
   resume(s) {
-    const opened = s.opened.map(o => `<span class="pill">${esc(o.replace(/\s+/g, " "))}</span>`).join("");
+    const started = s.verb === "Started";
+    const pills = s.opened.map((o, i) => `<span class="pill" data-open="${i}"><span class="spin"></span><span class="ok">✓</span>${esc(o.replace(/\s+/g, " "))}</span>`).join("");
     const skipped = s.skipped.length ? `<details><summary>${s.skipped.length} not reopened</summary>${
       s.skipped.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : "";
-    return `<section><h2>${s.verb === "Started" ? "▶ Started" : "↩"} ${esc(s.name)} <span class="sub">${s.verb === "Started" ? "last parked" : "parked"} ${esc(s.ago)}</span></h2>${noteBlock(s.note, s.steps)}
-      <div class="label">Opened ${s.opened.length}</div><div class="pills">${opened || `<span class="meta">Nothing to open, it's all here</span>`}</div>
-      ${skipped}</section>`;
+    return `<section><h2>${started ? "Started" : "Resuming"} ${esc(s.name)} <span class="sub">${started ? "last parked" : "parked"} ${esc(s.ago)}</span></h2>
+      ${noteBlock(s.note, s.steps)}
+      <div class="label">${s.opened.length ? "Opening" : "Nothing to open"}</div>
+      <div class="pills stagger">${pills || `<span class="meta">It's all already here.</span>`}</div>${skipped}</section>`;
   },
+
   confirm(s) {
     return `<section><h2>${esc(s.title)}</h2>${s.lines.map(l => `<div class="foot" style="margin-top:2px">${esc(l)}</div>`).join("")}
-      <div class="actions"><button class="primary" style="background:var(--danger);border-color:var(--danger)" data-say="yes">Delete</button>
-      <button data-say="keep">Keep it</button></div></section>`;
+      <div class="actions"><button class="danger primary" data-say="yes">Delete</button><button data-say="keep">Keep it</button></div></section>`;
   },
+
   message(s) {
-    return `<section><h2>${esc(s.title)}</h2>${s.lines.map(l => `<div class="step">• ${esc(l)}</div>`).join("")}</section>`;
+    return `<section><h2>${esc(s.title)}</h2><div class="stagger">${s.lines.map((l, i) => `<div class="step" style="--i:${i}">· ${esc(l)}</div>`).join("")}</div></section>`;
   },
 };
 
@@ -244,73 +365,173 @@ const PLACEHOLDER = {
   confirm: "yes / no",
 };
 
-function render(s) {
+// ---- drawing ------------------------------------------------------------------------
+function render(s, { fresh = false } = {}) {
+  const changedView = fresh || s.view !== state.view;
   state = s;
-  const asking = s.view === "ask" ? s.prompt : s.view === "confirm" ? s.title : "";
-  $("ask").textContent = asking;
-  $("ask").style.display = s.view === "ask" ? "block" : "none";
+  $("ask").hidden = s.view !== "ask";
+  $("ask").textContent = s.view === "ask" ? s.prompt : "";
   q.placeholder = PLACEHOLDER[s.view] || PLACEHOLDER.home;
   view.innerHTML = views[s.view](s);
+
+  const section = view.querySelector("section");
+  if (section && changedView) section.classList.add("enter");
+  // rows: stagger in when a view first appears; afterwards only flash the rows that changed
+  const rows = [...view.querySelectorAll("[data-toggle]")];
+  const keep = new Map(rows.map(r => [+r.dataset.toggle, !r.classList.contains("off")]));
+  rows.forEach((r, n) => {
+    const i = +r.dataset.toggle;
+    if (changedView) { r.style.setProperty("--i", n); r.style.animation = `rise var(--base) var(--ease) backwards ${Math.min(n, 12) * 18}ms`; }
+    else if (lastKeep.has(i) && lastKeep.get(i) !== keep.get(i)) r.classList.add("flash");
+  });
+  lastKeep = keep;
+  if (s.view === "resume") playOpening();
+  if (s.parks) parkNames = s.parks.map(p => p.name);
+  cursor = changedView ? (s.view === "home" ? 0 : -1) : cursor;
+  showCursor(false);
   updateChip();
   fit();
 }
 
-// Ask Python to resize the window to fit what's drawn
+// Resume: each pill shows a spinner, then a tick, one after another
+function playOpening() {
+  view.querySelectorAll("[data-open]").forEach((p, i) => setTimeout(() => p.classList.add("done"), 300 + i * 200));
+}
+
+// Ask Python to resize the window to what's drawn (after layout settles)
 function fit() {
   requestAnimationFrame(() => pywebview.api.resize(Math.ceil($("wrap").getBoundingClientRect().height)));
 }
 
-// ---- input ---------------------------------------------------------------------
-async function submit(text = q.value) {
+// ---- keyboard: ↑↓ to move, Space to tick, Enter to resume, Tab to complete --------------
+function navRows() { return [...view.querySelectorAll("[data-nav]")].filter(r => !r.closest(".collapsed")); }
+function showCursor(scroll = true) {
+  navRows().forEach((r, i) => r.classList.toggle("sel", i === cursor));
+  const current = navRows()[cursor];
+  if (scroll && current) current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function complete() {
+  const m = q.value.match(/^(\s*(?:resume|view|start|delete|pin|unpin|park|show|open|save as)\s+)(.*)$/i);
+  if (!m || !parkNames.length) return false;
+  if (!tabCycle || tabCycle.prefix !== m[1]) {
+    const typed = m[2].toLowerCase();
+    const options = parkNames.filter(n => n.toLowerCase().startsWith(typed))
+      .concat(parkNames.filter(n => !n.toLowerCase().startsWith(typed) && n.toLowerCase().includes(typed)));
+    if (!options.length) return false;
+    tabCycle = { prefix: m[1], options, at: -1 };
+  }
+  tabCycle.at = (tabCycle.at + 1) % tabCycle.options.length;
+  q.value = tabCycle.prefix + tabCycle.options[tabCycle.at];
+  updateChip();
+  return true;
+}
+
+// ---- input ---------------------------------------------------------------------------
+function startCountdown() {
+  clearTimeout(autoRun);
+  field.classList.remove("counting");
+  void field.offsetWidth;  // restart the line's transition
+  field.classList.add("counting");
+  setStatus("Running in a moment · any key to stop", true);
+  autoRun = setTimeout(submit, AUTO_RUN_MS);
+}
+function stopCountdown() {
+  if (!autoRun) return;
   clearTimeout(autoRun);
   autoRun = null;
+  field.classList.remove("counting");
+  setStatus(STATUS_IDLE);
+}
+
+async function submit(text = q.value) {
+  stopCountdown();
+  field.classList.remove("counting");
   if (busy) return;
   q.value = "";
-  q.style.height = "48px";
+  sizeInput();
   updateChip();
   render(await call("submit", text));
 }
 
-q.addEventListener("input", () => { updateChip(); q.style.height = "48px"; q.style.height = Math.min(q.scrollHeight + 2, 110) + "px"; fit(); });
+function sizeInput() { q.style.height = "46px"; q.style.height = Math.min(q.scrollHeight + 2, 110) + "px"; }
+
+q.addEventListener("input", () => { tabCycle = null; updateChip(); sizeInput(); fit(); });
 q.addEventListener("paste", () => {
-  // Wispr pastes your words: run them after a short quiet, no Enter needed
-  clearTimeout(autoRun);
-  autoRun = setTimeout(submit, 1200);
+  // Wispr pastes your words: pulse once, then run after a short, visible countdown
+  field.animate([{ boxShadow: "0 0 0 0 transparent" }, { boxShadow: "0 0 0 4px var(--accent-soft)" }, { boxShadow: "0 0 0 0 transparent" }],
+                { duration: 420, easing: "ease-out" });
+  requestAnimationFrame(startCountdown);
 });
 q.addEventListener("keydown", e => {
-  if (e.key !== "Enter" && e.key !== "Control" && !(e.ctrlKey && e.key.toLowerCase() === "v")) { clearTimeout(autoRun); autoRun = null; }
+  const isPaste = e.ctrlKey && e.key.toLowerCase() === "v";
+  if (!["Control", "Enter", "Tab"].includes(e.key) && !isPaste) stopCountdown();
   if (e.key === "Escape") { e.preventDefault(); pywebview.api.hide(); return; }
-  if (state.view === "home" && !q.value && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+  if (e.key === "Tab") { e.preventDefault(); complete(); return; }  // Tab never leaves the box
+  const empty = !q.value.trim();
+  if (empty && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
     e.preventDefault();
-    const n = state.parks.length;
-    if (n) { selected = (selected + (e.key === "ArrowDown" ? 1 : n - 1)) % n; render(state); }
+    const n = navRows().length;
+    if (!n) return;
+    const step = e.key === "ArrowDown" ? 1 : -1;
+    cursor = cursor < 0 ? (step > 0 ? 0 : n - 1) : (cursor + step + n) % n;
+    showCursor();
+    return;
+  }
+  if (empty && e.key === " " && state.view === "draft" && cursor >= 0) {
+    e.preventDefault();
+    const target = navRows()[cursor];
+    if (target) toggleRow(+target.dataset.toggle);
     return;
   }
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
-    if (state.view === "home" && !q.value.trim() && state.parks.length) return submit("resume " + state.parks[selected].name);
+    if (empty && state.view === "home" && cursor >= 0 && navRows()[cursor]) return submit("resume " + navRows()[cursor].dataset.name);
     submit();
   }
 });
 
+async function toggleRow(i) { render(await call("toggle", i)); }
+
 view.addEventListener("click", async e => {
+  const groupCheck = e.target.closest("[data-groupcheck]");
+  if (groupCheck) {
+    e.stopPropagation();
+    const group = state.groups.find(g => g.label === groupCheck.dataset.groupcheck);
+    const allOn = group.items.every(i => i.keep);
+    render(await call("set_many", group.items.map(i => i.i), !allOn));
+    return q.focus();
+  }
+  const fold = e.target.closest("[data-collapse]");
+  if (fold) {
+    const label = fold.dataset.collapse;
+    collapsed.has(label) ? collapsed.delete(label) : collapsed.add(label);
+    fold.closest(".group").classList.toggle("collapsed", collapsed.has(label));
+    setTimeout(fit, 200);  // after the fold animation
+    return q.focus();
+  }
   const target = e.target.closest("[data-toggle], [data-say]");
   if (!target) return;
-  if (target.dataset.toggle !== undefined) render(await call("toggle", +target.dataset.toggle));
+  if (target.dataset.toggle !== undefined) await toggleRow(+target.dataset.toggle);
   else submit(target.dataset.say);
   q.focus();
 });
 
-// ---- called from Python each time the bar opens ----------------------------------
+// ---- called from Python ------------------------------------------------------------------
 window.Stage = {
-  show(view) { if (!busy) render(view); },  // Python pushing an update (e.g. tabs arrived)
+  show(v) { if (!busy) render(v); },  // Python pushing an update (e.g. tabs arrived)
   open() {
-    clearTimeout(autoRun);
+    stopCountdown();
     q.value = "";
-    q.style.height = "48px";
-    selected = 0;
+    sizeInput();
+    lastChip = "";
+    $("chips").innerHTML = "";
+    $("wrap").classList.remove("opening");
+    void $("wrap").offsetWidth;  // replay the opening animation every time
+    $("wrap").classList.add("opening");
     q.focus();
-    pywebview.api.opened().then(render);  // don't wait: focus is what matters first
+    pywebview.api.opened().then(v => render(v, { fresh: true }));  // don't wait: focus first
+    pywebview.api.names().then(n => { if (Array.isArray(n)) parkNames = n; });
     return document.activeElement === q;
   },
 };

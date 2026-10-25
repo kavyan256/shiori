@@ -68,6 +68,12 @@ class Api:
     def toggle(self, index):
         return self._safe(controller.toggle, index)
 
+    def set_many(self, indexes, keep):
+        return self._safe(controller.set_many, indexes, keep)
+
+    def names(self):
+        return self._safe(controller.names)
+
     def resize(self, height):
         window.resize(WIDTH, max(MIN_HEIGHT, min(int(height) + 2, MAX_HEIGHT)))
 
