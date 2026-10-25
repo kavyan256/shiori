@@ -48,14 +48,15 @@ def save(stage):
     os.replace(tmp, path)
 
 
-def park(name, items, note="", steps=None):
+def park(name, items, note="", steps=None, cues=None):
     """Save a version under this name (creating it if new). Items keep their keep=True/False."""
     stage = load(name) or {"name": name, "snapshots": []}
     snapshot = {
         "parked_at": datetime.now().isoformat(timespec="seconds"),
         "brain_dump": note,
         "next_steps": steps or [],
-        "windows": items,  # app windows and browser tabs (see items.py)
+        "windows": items,  # app windows, tabs, terminals and files (see items.py)
+        "cues": cues or [],  # git branch / changes per repo (see cues.py)
     }
     stage["snapshots"].append(snapshot)
     save(stage)

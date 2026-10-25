@@ -14,6 +14,7 @@ Views:
 import time
 
 import browser
+import cues
 import restore
 import store
 from capture import list_windows
@@ -96,6 +97,9 @@ class Controller:
     def start_draft(self, name="", note=""):
         browser.request_reports()  # exact tabs right now, not the last report
         self.draft = {"items": current_items(), "note": "", "steps": [], "name": name, "at": time.time()}
+        # git cues for every repo on screen, worked out once; the view shows only the ticked ones
+        all_folders = cues.folders_of([{**i, "keep": True} for i in self.draft["items"]])
+        self.draft["cues"] = cues.for_folders(all_folders)
         left_out = sum(1 for i in self.draft["items"] if not i["keep"])
         message = "Untick what you don't want, say a note, then “save as <name>”."
         if left_out:
@@ -182,7 +186,7 @@ class Controller:
         existing = store.load(name)  # exact name only: never fold "acads" into "coding"
         name = existing["name"] if existing else name
         draft, self.draft = self.draft, None
-        store.park(name, draft["items"], draft["note"], draft["steps"])
+        store.park(name, draft["items"], draft["note"], draft["steps"], ticked_cues(draft))
         kept = sum(1 for i in draft["items"] if i["keep"])
         versions = len(store.load(name)["snapshots"])
         extra = f" · version {versions}" if versions > 1 else ""
@@ -191,7 +195,7 @@ class Controller:
     def draft_view(self, message=""):
         d = self.draft
         return {"view": "draft", "name": d["name"], "note": d["note"], "steps": d["steps"],
-                "groups": groups(d["items"]), "message": message,
+                "groups": groups(d["items"]), "message": message, "cues": cue_rows(ticked_cues(d)),
                 "no_tabs": sorted({app_name(i) for i in d["items"]
                                    if i["app"] in ("chrome.exe", "msedge.exe") and kind(i) == "window"})}
 
@@ -222,6 +226,7 @@ class Controller:
             "versions": [{"ago": store.ago(s["parked_at"]), "note": s["brain_dump"]}
                          for s in reversed(stage["snapshots"][:-1])][:5],
             "pinned": groups(stage.get("pinned", []), numbered=False),
+            "cues": cue_rows(last.get("cues", [])),
             "message": message,
         }
 
@@ -232,7 +237,8 @@ class Controller:
         snap = store.latest(name)
         opened, skipped = restore.reopen(snap, name)
         return {"view": "resume", "verb": "Resumed", "name": name, "ago": store.ago(snap["parked_at"]),
-                "note": snap["brain_dump"], "steps": snap["next_steps"], "opened": opened, "skipped": skipped}
+                "note": snap["brain_dump"], "steps": snap["next_steps"], "opened": opened, "skipped": skipped,
+                "cues": cue_rows(cues.compare(snap.get("cues", [])))}
 
     # --- presets ------------------------------------------------------------------------
     def pin(self, spoken):
@@ -266,7 +272,8 @@ class Controller:
         last = stage["snapshots"][-1]
         opened, skipped = restore.reopen({"windows": stage["pinned"]}, name)
         return {"view": "resume", "verb": "Started", "name": name, "ago": store.ago(last["parked_at"]),
-                "note": last["brain_dump"], "steps": last["next_steps"], "opened": opened, "skipped": skipped}
+                "note": last["brain_dump"], "steps": last["next_steps"], "opened": opened, "skipped": skipped,
+                "cues": cue_rows(cues.compare(last.get("cues", [])))}
 
     def ask_delete(self, spoken):
         name = store.find(spoken)
@@ -304,6 +311,18 @@ def groups(items, numbered=True):
             "meta": row_meta(item),
         })
     return [{"label": label, "items": rows} for label, rows in out.items() if rows]
+
+
+def ticked_cues(draft):
+    """The draft's git cues for repos that ticked items still work in."""
+    roots = {str(r) for r in map(cues.repo_root, cues.folders_of(draft["items"])) if r}
+    return [c for c in draft.get("cues", []) if c["path"] in roots]
+
+
+def cue_rows(found):
+    """Git cues ready to draw: repo, one line of text, and a warning if the branch changed since."""
+    return [{"repo": c["repo"], "text": cues.describe(c),
+             "drift": f"now on {c['now_branch']}" if c.get("now_branch") else ""} for c in found]
 
 
 def row_meta(item):

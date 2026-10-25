@@ -8,7 +8,7 @@
   :root {
     --bg: #14161b; --panel: #1d2027; --raised: #252933; --line: #2c303a; --line-strong: #3a3f4b;
     --text: #ebebf0; --muted: #8b90a0; --faint: #5d6270;
-    --accent: #7aa2f7; --accent-soft: rgba(122, 162, 247, .16); --ok: #9ece6a; --danger: #f7768e;
+    --accent: #7aa2f7; --accent-soft: rgba(122, 162, 247, .16); --ok: #9ece6a; --danger: #f7768e; --warn: #e0af68;
     --radius: 12px;
     --fast: 120ms; --base: 180ms; --slow: 260ms;
     --ease: cubic-bezier(.2, .8, .2, 1);           /* quick start, soft landing */
@@ -18,7 +18,7 @@
   @media (prefers-color-scheme: light) {
     :root { --bg: #f6f7f9; --panel: #ffffff; --raised: #eceef3; --line: #e1e4ea; --line-strong: #cfd3dc;
             --text: #1b1d22; --muted: #686d7c; --faint: #a3a7b3;
-            --accent: #3567e0; --accent-soft: rgba(53, 103, 224, .12); --ok: #2f8a3a; --danger: #c93a52; }
+            --accent: #3567e0; --accent-soft: rgba(53, 103, 224, .12); --ok: #2f8a3a; --danger: #c93a52; --warn: #a86b00; }
   }
   /* Windows "show animations" off: keep changes instant */
   @media (prefers-reduced-motion: reduce) {
@@ -130,6 +130,14 @@
   .group.collapsed .grows { grid-template-rows: 0fr; }
 
   .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+  /* git cues under the note */
+  .cues { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; }
+  .cue { display: flex; align-items: center; gap: 8px; font: 12px "Cascadia Mono", Consolas, monospace; color: var(--muted);
+         padding: 3px 10px; animation: rise var(--base) var(--ease) backwards; }
+  .cue svg { width: 13px; height: 13px; stroke: var(--accent); stroke-width: 1.8; fill: none; flex: none; }
+  .cue b { color: var(--text); font-weight: 600; }
+  .cue .drift { color: var(--warn); margin-left: auto; font-family: "Segoe UI"; white-space: nowrap; }
 
   /* buttons and pills */
   .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
@@ -254,10 +262,18 @@ function updateChip() {
 }
 
 // ---- pieces shared by views ---------------------------------------------------------
-function noteBlock(note, steps, emptyText = "No note") {
+function noteBlock(note, steps, emptyText = "No note", gitCues = []) {
   const lines = note ? `<p>${esc(note)}</p>` : `<p class="empty">${esc(emptyText)}</p>`;
   const list = (steps || []).map(s => `<div class="step"><span class="box"></span>${esc(s)}</div>`).join("");
-  return `<div class="note">${lines}${list}</div>`;
+  return `<div class="note">${lines}${list}</div>${cueBlock(gitCues)}`;
+}
+
+// One line per git repo: branch · changes · last commit, and a warning if you've switched branch since
+const BRANCH = '<svg viewBox="0 0 16 16"><circle cx="4" cy="3.5" r="1.6"/><circle cx="4" cy="12.5" r="1.6"/><circle cx="12" cy="5.5" r="1.6"/><path d="M4 5.1v5.8M12 7.1c0 3-8 1.5-8 3.8"/></svg>';
+function cueBlock(gitCues) {
+  if (!gitCues || !gitCues.length) return "";
+  return `<div class="cues">${gitCues.map((c, i) => `<div class="cue" style="animation-delay:${80 + i * 40}ms">${BRANCH}
+    <span><b>${esc(c.repo)}</b> ${esc(c.text)}</span>${c.drift ? `<span class="drift">${esc(c.drift)}</span>` : ""}</div>`).join("")}</div>`;
 }
 
 function row(it, clickable) {
@@ -302,7 +318,7 @@ const views = {
     const total = s.groups.reduce((n, g) => n + g.items.length, 0);
     const kept = s.groups.reduce((n, g) => n + g.items.filter(i => i.keep).length, 0);
     return `<section><h2>New park ${s.name ? `<span class="sub">→ ${esc(s.name)}</span>` : ""}<span class="tag">not saved</span></h2>
-      ${noteBlock(s.note, s.steps, "No note yet. Say what you were doing and what's next.")}
+      ${noteBlock(s.note, s.steps, "No note yet. Say what you were doing and what's next.", s.cues)}
       <div class="scroll stagger-rows">${groupsBlock(s.groups, true)}</div>
       ${s.no_tabs.length ? `<div class="warn">${esc(s.no_tabs.join(" and "))} shows only the tab in front. Add the Stage extension to pick tabs.</div>` : ""}
       ${s.message ? `<div class="msg">${esc(s.message)}</div>` : ""}
@@ -333,7 +349,7 @@ const views = {
     const buttons = pinnedCount
       ? `<button class="primary" data-say="start ${esc(s.name)}">Start preset</button><button data-say="resume ${esc(s.name)}">Resume last park</button>`
       : `<button class="primary" data-say="resume ${esc(s.name)}">Resume</button><button data-say="pin ${esc(s.name)}">Pin as preset</button>`;
-    return `<section>${title}${message}${noteBlock(s.note, s.steps)}${items}${pinned}${versions}
+    return `<section>${title}${message}${noteBlock(s.note, s.steps, "No note", s.cues)}${items}${pinned}${versions}
       <div class="actions">${buttons}<button data-say="list">All parks</button>
       <button class="danger" data-say="delete ${esc(s.name)}">Delete</button></div></section>`;
   },
@@ -344,7 +360,7 @@ const views = {
     const skipped = s.skipped.length ? `<details><summary>${s.skipped.length} not reopened</summary>${
       s.skipped.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : "";
     return `<section><h2>${started ? "Started" : "Resuming"} ${esc(s.name)} <span class="sub">${started ? "last parked" : "parked"} ${esc(s.ago)}</span></h2>
-      ${noteBlock(s.note, s.steps)}
+      ${noteBlock(s.note, s.steps, "No note", s.cues)}
       <div class="label">${s.opened.length ? "Opening" : "Nothing to open"}</div>
       <div class="pills stagger">${pills || `<span class="meta">It's all already here.</span>`}</div>${skipped}</section>`;
   },
