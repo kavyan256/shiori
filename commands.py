@@ -46,6 +46,7 @@ UNDO = re.compile(r"^(?:undo|undo (?:that|it|this)|take (?:that|it) back)$", re.
 AND_CLEAR = re.compile(r"(?:^|[\s,.]+)(?:and\s+)?(?:clear|close)(?:\s+(?:it all|everything|them|up|the desk|my desk))?$", re.I)
 PARK_NAME_WORDS = re.compile(r"^(?:and\s+)?(?:save\s+(?:it\s+|this\s+)?)?(?:as|called|named)\s+", re.I)
 AND_SAVE = re.compile(r"[\s,.]+and\s+save(?:\s+it)?$", re.I)
+NO = re.compile(r"^(?:no|nope|nah|back|go back|not that)\b", re.I)
 YES = re.compile(r"^(?:yes|yeah|yep|yup|confirm|do it|delete it|sure|ok(?:ay)?)\b", re.I)
 # --- while a draft park is open ---
 # longer phrases first, so "add back chrome" isn't read as add "back chrome"
@@ -58,6 +59,10 @@ CANCEL = re.compile(r"^(?:cancel|discard|never ?mind|throw (?:it|this) away)\b",
 NOTE = re.compile(r"^(?:note|add (?:a )?note|my note is)\s*[:,-]?\s*(?P<note>.+)$", re.I | re.S)
 NUMBER_WORDS = {w: str(n) for n, w in enumerate(
     "zero one two three four five six seven eight nine ten eleven twelve".split())}
+# A park that starts with one of these is a note, not a name: "park I was fixing…" is not a park called "I"
+STARTS_A_NOTE = {"i", "i'm", "im", "i've", "i'll", "we", "we're", "the", "a", "an", "my", "was", "just", "so",
+                 "working", "fixing", "doing", "reading", "writing", "studying", "next", "then", "and", "it",
+                 "it's", "this", "that", "currently", "still", "now", "today", "tomorrow", "need", "have", "to"}
 NOT_A_MATCH = {"the", "and", "window", "windows", "tab", "tabs", "number", "app", "one", "all"}
 FRIENDLY = {"code": "VS Code", "windowsterminal": "Terminal", "explorer": "Explorer",
             "chrome": "Chrome", "msedge": "Edge", "claude": "Claude",
@@ -111,7 +116,7 @@ def split_park(rest):
     a saved park name at the start wins, else the first word is the name.
     """
     head, sep, tail = cut_at_punctuation(rest)
-    if sep and len(head.split()) <= 4:
+    if sep and len(head.split()) <= 4 and head.split()[0].lower() not in STARTS_A_NOTE:
         return head.strip(), tail.strip()
     spoken = store.slug(rest)
     for s in sorted(store.list_stages(), key=lambda s: -len(s["name"])):
@@ -120,6 +125,8 @@ def split_park(rest):
             parts = rest.split()
             return " ".join(parts[:words]), " ".join(parts[words:])
     first, _, after = rest.strip().partition(" ")
+    if first.lower().strip(".,") in STARTS_A_NOTE or (sep and len(head.split()) > 4):
+        return "", rest.strip()  # "park I was fixing the login bug": all note, the name comes later
     return first, after
 
 

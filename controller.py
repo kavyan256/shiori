@@ -22,13 +22,14 @@ import naming
 import office
 import onboarding
 from capture import list_windows
-from commands import YES, app_name, parse, parse_draft, pick_windows
+from commands import NO, YES, app_name, clean_name, parse, parse_draft, pick_windows
 from items import current_items, kind, tab_items
 from notes import split_note
 from presets import preselect, profile, signatures
 
 DRAFT_EXPIRES = 2 * 3600  # an untouched draft older than this is thrown away
 UNDO_FOR = 60             # seconds an action can still be undone
+LONG_NAME = (4, 40)       # a new name with more words or letters than this is checked before saving
 
 
 class Controller:
@@ -36,6 +37,7 @@ class Controller:
         self.draft = None           # the park being built: {"items", "note", "steps", "name", "at"}
         self.asking_name = False    # waiting for "what should I call it?"
         self.confirm_delete = None  # park name waiting for "yes"
+        self.checking_name = None   # a long name waiting for "yes": {"name", "clear"}
         self.viewing = None         # the park on screen, for "pin this"
         self.last_action = None     # what "undo" would take back: {"kind", "name", "at", ...}
 
@@ -43,6 +45,7 @@ class Controller:
         """The bar just opened: carry on with a draft if there is one, else show your parks."""
         self.asking_name = False
         self.confirm_delete = None
+        self.checking_name = None
         if self.draft and time.time() - self.draft["at"] > DRAFT_EXPIRES:
             self.draft = None
         return self.draft_view() if self.draft else self.home()
@@ -57,6 +60,8 @@ class Controller:
                 self.remember("delete", name, trashed=str(trashed))
                 return self.with_undo(self.home(f"Deleted “{name}”."))
             return self.home(f"Kept “{name}”.")
+        if self.checking_name:
+            return self.answer_name_check(text)
         if self.asking_name:
             self.asking_name = False
             if text or self.draft:
@@ -197,15 +202,35 @@ class Controller:
         return {"view": "ask", "prompt": "What should this park be called?",
                 "suggested": self.suggested_name() if self.draft else ""}
 
+    # --- long names: "save it as I was fixing the login bug" shouldn't quietly become a name ---
+    def check_name(self, name, clear_after):
+        self.checking_name = {"name": name, "clear": clear_after}
+        return {"view": "namecheck", "name": name, "suggested": self.suggested_name()}
+
+    def answer_name_check(self, text):
+        """'yes' keeps the long name; 'no' goes back to the park; anything else is the new name."""
+        pending, self.checking_name = self.checking_name, None
+        if not self.draft:
+            return self.home()
+        if YES.match(text):
+            return self.save(pending["name"], pending["clear"], checked=True)
+        if not text or NO.match(text):
+            return self.draft_view("Not saved yet. Say “save as” and a short name.")
+        command = parse_draft(text)  # "save as dsa" or just "dsa"
+        name = (command[1] or self.suggested_name()) if command[0] == "save" else clean_name(text)
+        return self.save(name, pending["clear"])
+
     def suggested_name(self):
         return naming.suggest(self.draft["items"], ticked_cues(self.draft))
 
-    def save(self, name, clear_after=False):
+    def save(self, name, clear_after=False, checked=False):
         """Save the draft under a name: the one said, the one from "park dsa", else the suggestion."""
         name = name or self.draft["name"] or self.suggested_name()
         if not store.slug(name):
             return self.ask_name()
         existing = store.load(name)  # exact name only: never fold "acads" into "coding"
+        if not existing and not checked and too_long(name):
+            return self.check_name(name, clear_after)
         name = existing["name"] if existing else name
         draft, self.draft = self.draft, None
         store.park(name, draft["items"], draft["note"], draft["steps"], ticked_cues(draft))
@@ -380,6 +405,11 @@ class Controller:
         return {"view": "message", "title": "Try one of these",
                 "lines": ["Park → your note → save as coding", "Resume  (the last one) · Resume coding", "Show my parks", "View coding", "Pin this · Start dsa",
                           "Park dsa (ticks dsa's things for you)", "Delete coding"]}
+
+
+def too_long(name):
+    words, letters = LONG_NAME
+    return len(name.split()) > words or len(name) > letters
 
 
 def groups(items, numbered=True):

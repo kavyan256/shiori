@@ -259,6 +259,8 @@ function intent(text) {
   if (/^(undo|undo (that|it|this)|take (that|it) back)$/i.test(t)) return "Undo";
   if (/^((hide|skip|close|dismiss)( the)? (guide|tips|getting started|tutorial)|got it)$/i.test(t)) return "Hide the guide";
   if (state.view === "ask") return `Name → ${t}`;
+  if (state.view === "namecheck") return /^(yes|yeah|yep|confirm|sure|ok)/i.test(t) ? `Save as ${state.name}`
+    : /^(no|nope|nah|back|go back)\b/i.test(t) ? "Back to the park" : `Name → ${t.replace(/^(save|call it|name it)( it)?( as)?\s*/i, "")}`;
   if (state.view === "confirm") return /^(yes|yeah|yep|confirm|sure|ok)/i.test(t) ? `Delete ${state.name}` : `Keep ${state.name}`;
   let m;
   if (state.view === "draft") {
@@ -372,15 +374,17 @@ const views = {
   home(s) {
     const msg = s.message ? `<div class="msg">${esc(s.message)}${s.undo ? ` ${undoButton(s, true)}` : ""}</div>` : "";
     const draft = s.draft ? `<div class="foot">You have an unsaved park. Say “park” to go back to it.</div>` : "";
+    const parkButton = `<div class="actions"><button class="primary" data-say="park">${s.draft ? "Back to unsaved park" : "Park what's open"}</button>
+      ${s.draft ? "" : `<button data-say="park and clear" title="Park, then close what you saved">Park and clear</button>`}</div>`;
     const guide = s.guide ? guideCard(s.guide) : "";
-    if (!s.parks.length && guide) return `<section>${msg}${guide}${draft}</section>`;
+    if (!s.parks.length && guide) return `<section>${msg}${guide}${parkButton}${draft}</section>`;
     if (s.parks.length && guide) return `<section>${msg}${guide}<div class="label">Your parks</div>
-      <div class="scroll stagger">${s.parks.map((p, i) => parkRow(p, i)).join("")}</div>${draft}</section>`;
+      <div class="scroll stagger">${s.parks.map((p, i) => parkRow(p, i)).join("")}</div>${parkButton}${draft}</section>`;
     if (!s.parks.length) return `<section>${msg}<div class="empty-state">Nothing parked yet.<br>
       Say <b>“Park”</b> to save what's open, drop what you don't need, then <b>“save as coding”</b>.<br>
-      Later: <b>“resume coding”</b>.</div>${draft}</section>`;
+      Later: <b>“resume coding”</b>.</div>${parkButton}${draft}</section>`;
     return `<section>${msg}<div class="label">Your parks · ↑↓ Enter to resume · click to view</div>
-      <div class="scroll stagger">${s.parks.map((p, i) => parkRow(p, i)).join("")}</div>${draft}</section>`;
+      <div class="scroll stagger">${s.parks.map((p, i) => parkRow(p, i)).join("")}</div>${parkButton}${draft}</section>`;
   },
 
   draft(s) {
@@ -444,6 +448,13 @@ const views = {
       ${s.undo ? `<div class="actions">${undoButton(s)}</div>` : ""}</section>`;
   },
 
+  namecheck(s) {
+    return `<section><h2>Save as “${esc(s.name)}”?</h2>
+      <div class="foot" style="margin-top:2px">That's a long name, maybe part of your note. Say a shorter name, or pick one:</div>
+      <div class="actions">${s.suggested ? `<button class="primary" data-say="${esc(s.suggested)}">Save as ${esc(s.suggested)}</button>` : ""}
+        <button data-say="yes">Keep the long name</button><button data-say="back">Back</button></div></section>`;
+  },
+
   confirm(s) {
     return `<section><h2>${esc(s.title)}</h2>${s.lines.map(l => `<div class="foot" style="margin-top:2px">${esc(l)}</div>`).join("")}
       <div class="actions"><button class="danger primary" data-say="yes">Delete</button><button data-say="keep">Keep it</button></div></section>`;
@@ -460,6 +471,7 @@ const PLACEHOLDER = {
   ask: "coding, acads, dsa…",
   park: "resume · pin this · start · delete",
   confirm: "yes / no",
+  namecheck: "a shorter name · yes · back",
 };
 
 // ---- drawing ------------------------------------------------------------------------
