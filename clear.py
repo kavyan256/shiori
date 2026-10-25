@@ -3,8 +3,8 @@
 "Park and clear" closes what you just saved, the way clicking X would, so apps
 still ask about unsaved work. Some things are never closed, and say why:
   - terminals: closing one stops whatever is running in it
-  - browser windows Stage only saw as a window (no extension): their other tabs weren't saved
-  - Office files with unsaved changes: Stage won't throw your edits away
+  - browser windows Shiori only saw as a window (no extension): their other tabs weren't saved
+  - Office files with unsaved changes: Shiori won't throw your edits away
 """
 import win32con
 import win32gui
@@ -63,7 +63,7 @@ def close_items(items):
         if browser.close_tabs(name, urls):
             closed.append(f"{len(urls)} {name.title()} tab{'s' if len(urls) > 1 else ''}")
         else:
-            left.append(f"{len(urls)} {name.title()} tabs: the Stage extension isn't connected")
+            left.append(f"{len(urls)} {name.title()} tabs: the Shiori extension isn't connected")
     close_windows(to_close)
     return list(dict.fromkeys(closed)), list(dict.fromkeys(left))
 

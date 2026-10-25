@@ -1,9 +1,9 @@
-"""Bridge between Stage and the browser extension. This PC only (127.0.0.1), never the network.
+"""Bridge between Shiori and the browser extension. This PC only (127.0.0.1), never the network.
 
 Live link (WebSocket, port 47322), used whenever the browser is open:
-  extension -> Stage   hello / report (every open tab, on every change) / log line
-  Stage -> extension   "report now" (when you say park) / "restore these tabs as a group"
-  While connected, the extension stays awake, so Stage never waits on a sleeping extension.
+  extension -> Shiori   hello / report (every open tab, on every change) / log line
+  Shiori -> extension   "report now" (when you say park) / "restore these tabs as a group"
+  While connected, the extension stays awake, so Shiori never waits on a sleeping extension.
 
 Plain web server (port 47321), the fallback when the live link isn't up yet:
   POST /tabs, /debug         same reports and log lines over plain HTTP
@@ -34,7 +34,7 @@ BROWSER_OF_APP = {exe: name for name, exe in EXE.items()}
 # Extra browser flags, for testing against a separate browser profile
 EXTRA_ARGS = os.environ.get("STAGE_BROWSER_ARGS", "").split()
 
-log = logging.getLogger("stage")
+log = logging.getLogger("shiori")
 _lock = threading.Lock()
 _new_report = threading.Condition(_lock)
 _tabs = {}      # browser -> {"at": time, "count": reports so far, "windows": [...]}
@@ -66,7 +66,7 @@ def _send(browser, message):
         return False
 
 
-# --- what Stage asks -----------------------------------------------------------------
+# --- what Shiori asks -----------------------------------------------------------------
 def fresh_tabs(open_apps):
     """{browser: windows} for browsers whose extension reported recently AND that have
     a window open right now (open_apps: exe names of open windows, e.g. {"chrome.exe"}).
@@ -137,10 +137,10 @@ def open_tabs(browser, urls, park_name):
 
 
 # --- the server the extension talks to ------------------------------------------------
-RESTORE_PAGE = """<!doctype html><meta charset="utf-8"><title>Stage · reopening tabs</title>
+RESTORE_PAGE = """<!doctype html><meta charset="utf-8"><title>Shiori · reopening tabs</title>
 <body style="font:15px Segoe UI,sans-serif;padding:40px;color:#444">
-<h2>Stage is reopening “{name}”…</h2>
-<p>If this page stays open, the Stage extension isn't installed in this browser.
+<h2>Shiori is reopening “{name}”…</h2>
+<p>If this page stays open, the Shiori extension isn't installed in this browser.
 Here are the tabs to open yourself:</p><ul>{links}</ul></body>"""
 
 
@@ -164,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         if length > 5_000_000:
             return self.reply(413)
-        if self.path == "/debug":  # the extension's own log lines, into stage.log
+        if self.path == "/debug":  # the extension's own log lines, into shiori.log
             log.info("extension: %s", self.rfile.read(min(length, 2000)).decode("utf-8", "replace"))
             return self.reply(204)
         try:
@@ -199,7 +199,7 @@ def _only_extensions(connection, request):
     """Refuse websites, same rule as the web server: browsers stamp a page's own
     http(s) address in Origin and a page can't fake it."""
     if request.headers.get("Origin", "").startswith(("http://", "https://")):
-        return connection.respond(HTTPStatus.FORBIDDEN, "Only the Stage extension may connect.\n")
+        return connection.respond(HTTPStatus.FORBIDDEN, "Only the Shiori extension may connect.\n")
     return None
 
 

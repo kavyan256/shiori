@@ -1,16 +1,16 @@
-// Stage browser extension.
+// Shiori browser extension.
 //
-// Keeps a live link (WebSocket) to the Stage app on this PC while both are running:
-//  - sends every open tab whenever tabs change, and whenever Stage asks ("park")
-//  - opens a park's tabs as a named tab group when Stage resumes it
-// The link also keeps this extension awake, so Stage never waits on a sleeping one.
+// Keeps a live link (WebSocket) to the Shiori app on this PC while both are running:
+//  - sends every open tab whenever tabs change, and whenever Shiori asks ("park")
+//  - opens a park's tabs as a named tab group when Shiori resumes it
+// The link also keeps this extension awake, so Shiori never waits on a sleeping one.
 //
-// If the browser was closed, Stage opens 127.0.0.1:47321/restore/<token> instead;
+// If the browser was closed, Shiori opens 127.0.0.1:47321/restore/<token> instead;
 // we spot that tab, fetch the tabs over plain HTTP, and open the group.
 //
 // Everything stays on this computer: the only address we talk to is 127.0.0.1.
 
-const STAGE = "http://127.0.0.1:47321";
+const APP = "http://127.0.0.1:47321";  // the Shiori app
 const LIVE = "ws://127.0.0.1:47322";
 const BROWSER = (navigator.userAgentData?.brands || []).some(b => b.brand === "Microsoft Edge") ? "edge" : "chrome";
 const COLORS = ["blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
@@ -44,7 +44,7 @@ function connect() {
     clearInterval(keepAwake);
     socket = null;
   };
-  socket.onerror = () => {};  // Stage not running: onclose follows, we retry on the next alarm
+  socket.onerror = () => {};  // Shiori not running: onclose follows, we retry on the next alarm
 }
 
 function send(message) {
@@ -53,10 +53,10 @@ function send(message) {
   return true;
 }
 
-// A line in Stage's log (data/stage.log), so problems here can be seen there
+// A line in Shiori's log (data/shiori.log), so problems here can be seen there
 function debug(text) {
   if (!send({ type: "log", text: String(text) })) {
-    fetch(`${STAGE}/debug`, { method: "POST", body: String(text) }).catch(() => {});
+    fetch(`${APP}/debug`, { method: "POST", body: String(text) }).catch(() => {});
   }
 }
 
@@ -95,15 +95,15 @@ async function report() {
     windows: await Promise.all(windows.map(async w => ({
       id: w.id,
       focused: w.focused,
-      tabs: await Promise.all(w.tabs.filter(t => t.url && !t.url.startsWith(STAGE)).map(describe)),
+      tabs: await Promise.all(w.tabs.filter(t => t.url && !t.url.startsWith(APP)).map(describe)),
     }))),
   };
   if (send(body)) return;
   connect();  // not linked yet: try, and send this one over plain HTTP meanwhile
   try {
-    await fetch(`${STAGE}/tabs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await fetch(`${APP}/tabs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   } catch (e) {
-    // Stage isn't running: nothing to do
+    // Shiori isn't running: nothing to do
   }
 }
 
@@ -113,11 +113,11 @@ for (const event of [chrome.tabs.onCreated, chrome.tabs.onRemoved, chrome.tabs.o
   event.addListener(reportSoon);
 }
 chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
-  if ((change.url || change.status === "complete") && tab.url?.startsWith(`${STAGE}/restore/`)) return restoreFromTab(tab);
+  if ((change.url || change.status === "complete") && tab.url?.startsWith(`${APP}/restore/`)) return restoreFromTab(tab);
   if (change.url || change.title || change.pinned !== undefined || change.groupId !== undefined) reportSoon();
 });
 
-// Every 30 s: reconnect if Stage started after the browser (this also wakes us up)
+// Every 30 s: reconnect if Shiori started after the browser (this also wakes us up)
 chrome.alarms.create("link", { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener(() => { connect(); });
 chrome.runtime.onStartup.addListener(connect);
@@ -165,7 +165,7 @@ async function closeGroup(name) {
   }
 }
 
-// Browser was closed: Stage opened its restore page. Fetch the tabs and replace that page.
+// Browser was closed: Shiori opened its restore page. Fetch the tabs and replace that page.
 const handled = new Set();
 async function restoreFromTab(triggerTab) {
   if (handled.has(triggerTab.id)) return;
@@ -173,11 +173,11 @@ async function restoreFromTab(triggerTab) {
   const token = (triggerTab.url || triggerTab.pendingUrl).split("/restore/")[1].split(/[?#]/)[0];
   let park;
   try {
-    const response = await fetch(`${STAGE}/restore/${token}.json`);
-    if (!response.ok) return debug(`restore ${token}: Stage answered ${response.status}`);
+    const response = await fetch(`${APP}/restore/${token}.json`);
+    if (!response.ok) return debug(`restore ${token}: Shiori answered ${response.status}`);
     park = await response.json();
   } catch (e) {
-    return debug(`restore ${token}: ${e}`);  // leave Stage's page open, it lists the links
+    return debug(`restore ${token}: ${e}`);  // leave Shiori's page open, it lists the links
   }
   await openGroup(park, triggerTab.windowId);
   await chrome.tabs.remove(triggerTab.id);
@@ -186,7 +186,7 @@ async function restoreFromTab(triggerTab) {
 // The restore page can load before we wake up and its event is then missed: look for it
 async function scanForRestores() {
   for (const tab of await chrome.tabs.query({})) {
-    if ((tab.url || tab.pendingUrl || "").startsWith(`${STAGE}/restore/`)) restoreFromTab(tab);
+    if ((tab.url || tab.pendingUrl || "").startsWith(`${APP}/restore/`)) restoreFromTab(tab);
   }
 }
 

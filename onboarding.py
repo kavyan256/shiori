@@ -1,6 +1,6 @@
 """The first-run guide: three steps that tick off as you actually do them.
 
-  1. open Stage with the hotkey     (ticked when you press Ctrl+Alt+S)
+  1. open Shiori with the hotkey     (ticked when you press Ctrl+Alt+S)
   2. park, then save                (ticked when a park is saved)
   3. resume it                      (ticked when you resume or start one)
 
@@ -24,7 +24,7 @@ def _load():
 
 
 def first_run():
-    """True only the very first time Stage starts for this user."""
+    """True only the very first time Shiori starts for this user."""
     return not FILE.exists()
 
 

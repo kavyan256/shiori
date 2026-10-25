@@ -25,8 +25,8 @@ from commands import app_name
 from items import kind, without_time
 
 # Store apps all run inside this host, so its exe can't relaunch a specific app.
-# Python on its own opens nothing (and old parks may hold Stage's own popup).
-CANT_RELAUNCH = {"applicationframehost.exe", "unknown", "python.exe", "pythonw.exe", "stage.exe"}
+# Python on its own opens nothing (and old parks may hold Shiori's own popup).
+CANT_RELAUNCH = {"applicationframehost.exe", "unknown", "python.exe", "pythonw.exe", "stage.exe", "shiori.exe"}
 # Terminal windows saved as plain windows (old parks): a fresh window opens
 CONSOLES = {"cmd.exe", "powershell.exe", "pwsh.exe"}
 
@@ -54,7 +54,7 @@ def unminimize(hwnds):
 
 
 def running_app_id(app):
-    """App ID of a running Store-style app, for parks saved before Stage recorded it.
+    """App ID of a running Store-style app, for parks saved before Shiori recorded it.
     Looks only at processes that own a window (a tray app has a hidden one) and are
     packaged apps, instead of asking every process on the PC for its name (~0.7 s)."""
     pids = set()
@@ -70,7 +70,7 @@ def running_app_id(app):
 
 
 def start_command(w):
-    """How to start this app with no window open, or None if Stage can't."""
+    """How to start this app with no window open, or None if Shiori can't."""
     exe, app = w.get("exe", ""), w["app"]
     if app in CONSOLES and exe:
         return new_console(exe)
@@ -112,7 +112,7 @@ def plan(snapshot, name=""):
         if not w.get("keep", True):
             continue  # you dropped it when parking
         if kind(w) == "tab":
-            if w["url"].startswith("file:"):  # extensions can't open local files: Stage does
+            if w["url"].startswith("file:"):  # extensions can't open local files: Shiori does
                 local_tabs.append(w)
             else:
                 tabs.setdefault(w["browser"], []).append(w["url"])
@@ -195,7 +195,7 @@ def plan(snapshot, name=""):
                 opener = office.reopen if f["app"] in office.APPS else docs.reopen
                 actions.append((f"{app_name(f)}  {f['title']}{place}", lambda f=f, o=opener: o(f)))
 
-    # Local files open in a browser tab (file:///…pdf): Stage opens them in that browser
+    # Local files open in a browser tab (file:///…pdf): Shiori opens them in that browser
     for t in local_tabs:
         exe = browser.browser_exe(t["browser"])
         actions.append((f"{t['browser'].title()}  {t['title']}", lambda e=exe, u=t["url"]: subprocess.Popen([e, u])))
@@ -209,7 +209,7 @@ def plan(snapshot, name=""):
             skipped.append(f"{len(urls) - len(new)} {name_of_browser} tab(s) (already open)")
         if new:
             label = f"{name_of_browser.title()}  {len(new)} tab{'s' if len(new) > 1 else ''}"
-            actions.append((label, lambda b=name_of_browser, u=new: browser.open_tabs(b, u, name or "Stage")))
+            actions.append((label, lambda b=name_of_browser, u=new: browser.open_tabs(b, u, name or "Shiori")))
 
     return actions, skipped
 
@@ -226,7 +226,7 @@ def reopen(snapshot, name="", dry=False):
 def resume(name, dry=False):
     snapshot = store.latest(name)
     if not snapshot:
-        sys.exit(f"No Stage called '{name}'")
+        sys.exit(f"No Shiori called '{name}'")
 
     # The note comes first: getting your head back matters more than windows
     print(f"Resuming '{name}', parked {store.ago(snapshot['parked_at'])}\n")

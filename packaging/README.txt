@@ -2,10 +2,10 @@ STAGE: park your work by voice, resume where your head was
 =============================================================
 
 Install (about 30 seconds, no admin needed)
-  1. Right-click Stage-setup.zip -> Extract All
-  2. Open the extracted folder and double-click "Install Stage.cmd"
+  1. Right-click Shiori-setup.zip -> Extract All
+  2. Open the extracted folder and double-click "Install Shiori.cmd"
      If Windows says "Windows protected your PC": More info -> Run anyway
-     (Stage isn't signed by a company yet)
+     (Shiori isn't signed by a company yet)
   3. Look for the blue S in the tray, near the clock
 
 Use it
@@ -19,8 +19,8 @@ Use it
 
 Browser tabs (optional, one time)
   Right-click the tray S -> "Set up browser tabs..." and follow the 3 steps.
-  Without it, Stage still works; browsers show only their front tab.
+  Without it, Shiori still works; browsers show only their front tab.
 
 Needs: Windows 10/11. Wispr Flow is optional: typing works the same.
-Your parks stay on your PC, in %LOCALAPPDATA%\Stage.
-Uninstall: run uninstall.ps1 in %LOCALAPPDATA%\Programs\Stage
+Your parks stay on your PC, in %LOCALAPPDATA%\Shiori.
+Uninstall: run uninstall.ps1 in %LOCALAPPDATA%\Programs\Shiori

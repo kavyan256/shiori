@@ -56,7 +56,7 @@ def describe(proc):
 
 
 def _stage_family():
-    """Stage's own process and the ones that started it, so Stage never parks itself."""
+    """Shiori's own process and the ones that started it, so Shiori never parks itself."""
     me = psutil.Process()
     return {me.pid} | {p.pid for p in me.parents()}
 

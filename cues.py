@@ -4,8 +4,8 @@
    "last_commit": "Add kernel header"}
 
 For a developer, "where was I" is mostly the branch and the diff. Saved when you
-park; on resume Stage compares with now ("you were on fix-login, now on main").
-Read-only: Stage only ever runs git status / rev-parse / log, never anything that changes a repo.
+park; on resume Shiori compares with now ("you were on fix-login, now on main").
+Read-only: Shiori only ever runs git status / rev-parse / log, never anything that changes a repo.
 """
 import shutil
 import subprocess

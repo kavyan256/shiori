@@ -1,4 +1,4 @@
-"""Stage: lives in the system tray, pops up on Ctrl+Alt+S, and you talk to it.
+"""Shiori: lives in the system tray, pops up on Ctrl+Alt+S, and you talk to it.
 
   "Park"                          start a park with every window and tab open
   "drop 3" / "drop youtube"       leave things out (or click them)
@@ -39,13 +39,14 @@ import store
 from controller import Controller
 
 APP_DIR = paths.APP_DIR
-TITLE = "Stage"
+TITLE = "Shiori"
 HOTKEY = (win32con.MOD_CONTROL | win32con.MOD_ALT | 0x4000, ord("S"))  # Ctrl+Alt+S, 0x4000 = no repeat
 HOTKEY_LABEL = "Ctrl+Alt+S"
 WIDTH, MIN_HEIGHT, MAX_HEIGHT = 680, 150, 640
-STARTUP_LINK = Path(os.environ["APPDATA"]) / r"Microsoft\Windows\Start Menu\Programs\Startup\Stage.lnk"
+STARTUP_LINK = Path(os.environ["APPDATA"]) / r"Microsoft\Windows\Start Menu\Programs\Startup\Shiori.lnk"
+OLD_STARTUP_LINK = STARTUP_LINK.with_name("Stage.lnk")  # from before the app was called Shiori
 
-log = logging.getLogger("stage")
+log = logging.getLogger("shiori")
 window = None
 icon = None
 controller = Controller()
@@ -95,8 +96,8 @@ class Api:
 
 # --- Showing the bar ---------------------------------------------------------------
 def bar_hwnd():
-    """Our own window: titled "Stage" AND owned by this process. (Title alone isn't
-    enough: any app can have a window called "Stage", e.g. a browser tab.)"""
+    """Our own window: titled "Shiori" AND owned by this process. (Title alone isn't
+    enough: any app can have a window called "Shiori", e.g. a browser tab.)"""
     found = []
 
     def check(hwnd, _):
@@ -150,7 +151,7 @@ def show_bar():
     window.move((screen_w - WIDTH) // 2, int(screen_h * 0.18))
     window.show()
     retries = bring_to_front()
-    focused = window.evaluate_js("Stage.open()")
+    focused = window.evaluate_js("Shiori.open()")
     log.info("bar shown: front after %s retries, input focused: %s", retries, focused)
 
 
@@ -184,7 +185,7 @@ def listen_for_hotkey():
     except pywintypes.error:
         log.error("%s is already used by another program", HOTKEY_LABEL)
         win32api.MessageBox(0, f"{HOTKEY_LABEL} is already used by another program.\n"
-                               "Stage is running in the tray; open it from the tray icon.", TITLE)
+                               "Shiori is running in the tray; open it from the tray icon.", TITLE)
         return
     log.info("ready: press %s", HOTKEY_LABEL)
     while True:
@@ -206,17 +207,17 @@ def starts_with_windows():
 
 
 def set_start_with_windows(on):
-    """A shortcut in the Startup folder runs Stage at login (pythonw = no console)."""
+    """A shortcut in the Startup folder runs Shiori at login (pythonw = no console)."""
     if not on:
         STARTUP_LINK.unlink(missing_ok=True)
         return
-    if paths.FROZEN:  # packaged Stage.exe
+    if paths.FROZEN:  # packaged Shiori.exe
         target, args = sys.executable, ""
     else:
         target, args = str(Path(sys.executable).with_name("pythonw.exe")), f'"{APP_DIR / "main.py"}"'
     link = win32com.client.Dispatch("WScript.Shell").CreateShortcut(str(STARTUP_LINK))
     link.TargetPath, link.Arguments, link.WorkingDirectory = target, args, str(APP_DIR)
-    link.Description = "Stage: park and resume your work by voice"
+    link.Description = "Shiori: park and resume your work by voice"
     link.Save()
 
 
@@ -236,35 +237,35 @@ def quit_app():
 
 
 EXTENSION_HELP = (
-    "To let Stage see your browser tabs, add its extension (one time):\n\n"
+    "To let Shiori see your browser tabs, add its extension (one time):\n\n"
     "1. In Chrome or Edge, open chrome://extensions (edge://extensions in Edge)\n"
     "2. Turn on 'Developer mode' (top right)\n"
     "3. Click 'Load unpacked' and pick the folder that just opened:\n   {folder}\n\n"
-    "Stage works without it too: browsers then show only their front tab.")
+    "Shiori works without it too: browsers then show only their front tab.")
 
 
 def set_up_extension():
     """Open the extension folder and show the 3 steps (the Web Store needs a review first)."""
     os.startfile(paths.EXTENSION)
-    win32api.MessageBox(0, EXTENSION_HELP.format(folder=paths.EXTENSION), "Stage: browser tabs")
+    win32api.MessageBox(0, EXTENSION_HELP.format(folder=paths.EXTENSION), "Shiori: browser tabs")
 
 
 def start_tray():
     global icon
-    icon = pystray.Icon("stage", tray_image(), f"Stage · {HOTKEY_LABEL}", menu=pystray.Menu(
+    icon = pystray.Icon("shiori", tray_image(), f"Shiori · {HOTKEY_LABEL}", menu=pystray.Menu(
         pystray.MenuItem(f"Open  ({HOTKEY_LABEL})", lambda: show_bar(), default=True),
         pystray.MenuItem("Set up browser tabs…", lambda: threading.Thread(target=set_up_extension, daemon=True).start()),
         pystray.MenuItem("Start with Windows", lambda item: set_start_with_windows(not starts_with_windows()),
                          checked=lambda item: starts_with_windows()),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Quit Stage", lambda: quit_app()),
+        pystray.MenuItem("Quit Shiori", lambda: quit_app()),
     ))
     icon.run_detached()
 
 
 # --- Startup --------------------------------------------------------------------------------
 def log_path():
-    return store.DATA_DIR.parent / "stage.log"
+    return store.DATA_DIR.parent / "shiori.log"
 
 
 def setup_logging():
@@ -278,11 +279,11 @@ def setup_logging():
 
 
 def only_one_copy():
-    """A named lock: if another Stage holds it, this copy steps aside."""
+    """A named lock: if another Shiori holds it, this copy steps aside."""
     global _lock
-    _lock = win32event.CreateMutex(None, False, "Local\\Stage-park-and-resume")
+    _lock = win32event.CreateMutex(None, False, "Local\\Shiori-park-and-resume")
     if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
-        win32api.MessageBox(0, f"Stage is already running.\nPress {HOTKEY_LABEL}, or use the tray icon.", TITLE)
+        win32api.MessageBox(0, f"Shiori is already running.\nPress {HOTKEY_LABEL}, or use the tray icon.", TITLE)
         sys.exit(0)
 
 
@@ -293,10 +294,13 @@ def tabs_arrived(browser_name):
         return
     view = controller.tabs_arrived(browser_name)
     if view:
-        window.evaluate_js(f"Stage.show({json.dumps(view)})")
+        window.evaluate_js(f"Shiori.show({json.dumps(view)})")
 
 
 def on_started():
+    if OLD_STARTUP_LINK.exists():  # started with Windows as "Stage": keep that, under the new name
+        OLD_STARTUP_LINK.unlink()
+        set_start_with_windows(True)
     first = onboarding.first_run()
     onboarding.start(has_parks=bool(store.list_stages()))
     browser.on_report = tabs_arrived
@@ -306,7 +310,7 @@ def on_started():
     if first:  # say hello: a Windows notification, and the bar opens once with the guide
         log.info("first run: showing the guide")
         try:
-            icon.notify(f"Stage is running in the tray. Press {HOTKEY_LABEL} any time.", "Stage")
+            icon.notify(f"Shiori is running in the tray. Press {HOTKEY_LABEL} any time.", "Shiori")
         except Exception:
             pass
         threading.Timer(1.5, show_bar).start()

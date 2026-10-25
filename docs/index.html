@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shiori: park your work by voice</title>
+<meta name="description" content="A Windows tray app: say park to save every window, tab, terminal and file with a note for later. Say resume to bring it all back. Works with Wispr Flow.">
+<meta property="og:title" content="Shiori: park your work by voice">
+<meta property="og:description" content="Say park to save everything that's open with a note. Say resume to bring it back, where your head was.">
+<meta property="og:image" content="img/draft.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='16' fill='%233567e0'/%3E%3Ctext x='32' y='45' font-family='Segoe UI,Arial' font-weight='700' font-size='38' text-anchor='middle' fill='white'%3ES%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --raised: #eef0f4; --line: #e3e6ec;
+    --text: #1b1d22; --muted: #5d6270; --accent: #3567e0; --accent-soft: rgba(53, 103, 224, .10); --ok: #2f8a3a;
+    --radius: 14px; --max: 1080px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14161b; --panel: #1d2027; --raised: #252933; --line: #2c303a;
+            --text: #ebebf0; --muted: #9a9fae; --accent: #7aa2f7; --accent-soft: rgba(122, 162, 247, .14); --ok: #9ece6a; }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.55;
+         font: 16px/1.55 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif; }
+  a { color: var(--accent); }
+  img { max-width: 100%; display: block; }
+  kbd { font: 600 13px "Segoe UI", system-ui, sans-serif; padding: 1px 7px; border-radius: 6px;
+        background: var(--panel); border: 1px solid var(--line); box-shadow: 0 1px 0 var(--line); }
+  code { font: 14px "Cascadia Code", Consolas, monospace; background: var(--raised); padding: 1px 6px; border-radius: 6px; }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
+
+  /* top bar */
+  header.top { display: flex; align-items: center; gap: 10px; padding: 18px 0; }
+  .logo { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: #fff;
+          display: grid; place-items: center; font-weight: 700; }
+  header.top b { font-size: 18px; }
+  header.top nav { margin-left: auto; display: flex; gap: 18px; font-size: 15px; }
+  header.top nav a { color: var(--muted); text-decoration: none; }
+  header.top nav a:hover { color: var(--text); }
+
+  /* hero */
+  .hero { display: grid; grid-template-columns: 1fr 1.1fr; gap: 48px; align-items: center; padding: 48px 0 72px; }
+  .eyebrow { display: inline-block; font-size: 13px; font-weight: 600; color: var(--accent); background: var(--accent-soft);
+             padding: 4px 12px; border-radius: 99px; }
+  h1 { font-size: clamp(36px, 5vw, 56px); line-height: 1.08; letter-spacing: -.02em; margin: 16px 0 18px; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lede { font-size: 19px; color: var(--muted); margin: 0 0 28px; max-width: 34em; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 12px; font-weight: 600;
+         text-decoration: none; border: 1px solid var(--line); color: var(--text); background: var(--panel); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn svg { width: 18px; height: 18px; }
+  .fine { margin-top: 12px; font-size: 14px; color: var(--muted); }
+  .shot { border-radius: var(--radius); box-shadow: 0 24px 60px rgba(20, 30, 60, .18), 0 2px 6px rgba(20, 30, 60, .08);
+          border: 1px solid var(--line); }
+
+  /* sections */
+  section { padding: 64px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(26px, 3.4vw, 36px); letter-spacing: -.01em; margin: 0 0 10px; }
+  .sub { color: var(--muted); font-size: 18px; margin: 0 0 36px; max-width: 40em; }
+
+  /* the three steps */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .step { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+  .step .n { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+             display: grid; place-items: center; font-weight: 700; margin-bottom: 12px; }
+  .step h3 { margin: 0 0 6px; font-size: 19px; }
+  .step p { margin: 0; color: var(--muted); }
+  .say { display: inline-block; margin-top: 12px; font-weight: 600; color: var(--text); background: var(--raised);
+         padding: 4px 10px; border-radius: 8px; font-size: 15px; }
+
+  /* screenshots side by side */
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+  figure { margin: 0; }
+  figcaption { color: var(--muted); font-size: 15px; margin-top: 12px; }
+
+  /* what comes back */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
+  .card h3 { margin: 0 0 4px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+
+  /* commands */
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line);
+          border-radius: var(--radius); overflow: hidden; }
+  td { padding: 12px 18px; border-top: 1px solid var(--line); vertical-align: top; }
+  tr:first-child td { border-top: 0; }
+  td:first-child { white-space: nowrap; font-weight: 600; width: 38%; }
+  td:last-child { color: var(--muted); }
+
+  /* install */
+  ol.install { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; max-width: 760px; }
+  ol.install li { counter-increment: s; position: relative; padding: 16px 20px 16px 62px; background: var(--panel);
+                  border: 1px solid var(--line); border-radius: var(--radius); }
+  ol.install li::before { content: counter(s); position: absolute; left: 18px; top: 15px; width: 28px; height: 28px;
+                          border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center;
+                          font-weight: 700; font-size: 14px; }
+  ol.install li span { display: block; color: var(--muted); font-size: 15px; margin-top: 2px; }
+
+  .private { display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center; background: var(--panel);
+             border: 1px solid var(--line); border-radius: var(--radius); padding: 26px 28px; }
+  .private svg { width: 44px; height: 44px; color: var(--ok); }
+  .private h3 { margin: 0 0 4px; font-size: 20px; }
+  .private p { margin: 0; color: var(--muted); }
+
+  .kanji { color: var(--muted); font-size: 17px; margin-left: -2px; }
+  .meaning { display: grid; grid-template-columns: auto 1fr; gap: 32px; align-items: center; }
+  .meaning .big { font-size: 96px; line-height: 1; color: var(--accent); font-family: "Yu Mincho", "MS Mincho", serif; }
+  @media (max-width: 860px) { .meaning { grid-template-columns: 1fr; gap: 12px; } .meaning .big { font-size: 64px; } }
+
+  footer { padding: 36px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
+
+  @media (max-width: 860px) {
+    .hero, .duo { grid-template-columns: 1fr; gap: 32px; }
+    .steps, .grid { grid-template-columns: 1fr; }
+    header.top nav a:not(.gh) { display: none; }
+    td:first-child { white-space: normal; width: auto; }
+    .hero { padding-top: 24px; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="logo">S</span><b>Shiori</b><span class="kanji" title="shiori: bookmark">栞</span>
+    <nav>
+      <a href="#how">How it works</a>
+      <a href="#install">Install</a>
+      <a class="gh" href="https://github.com/kavyan256/shiori">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div>
+      <span class="eyebrow">Built for the No Hands: Wispr Challenge</span>
+      <h1>Park your work by voice.<br><em>Resume where your head was.</em></h1>
+      <p class="lede">Switching tasks? Say <b>“park”</b>. Shiori saves every window, tab, terminal and file that's open,
+        plus a quick spoken note on what you were doing and what's next. Days later, say <b>“resume”</b> and it all
+        comes back, with your note.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/kavyan256/shiori/releases/latest/download/Shiori-setup.zip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+          Download for Windows</a>
+        <a class="btn" href="https://github.com/kavyan256/shiori">View the code</a>
+      </div>
+      <p class="fine">Windows 10 / 11 · free · about 25 MB · no admin, no account, no API key</p>
+    </div>
+    <img class="shot" src="img/draft.png" alt="Shiori's command bar showing a new park: VS Code, an Excel file, a dev-server terminal and two Chrome tabs ticked, a music tab left out, and a prompt to say what you were doing">
+  </div>
+</div>
+
+<section id="how">
+  <div class="wrap">
+    <h2>Three things to say</h2>
+    <p class="sub">Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>S</kbd> anywhere, hold your Wispr Flow key and talk.
+      Typing works exactly the same.</p>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><h3>Park</h3>
+        <p>Everything open appears, already ticked. Chat and music start unticked. Drop anything with a click or a word.</p>
+        <span class="say">“park”</span></div>
+      <div class="step"><div class="n">2</div><h3>Say what's next</h3>
+        <p>Talk through where you are. Shiori keeps your words, and each “next…” becomes a step you can tick off later.</p>
+        <span class="say">“I was fixing the login loop, next write the test”</span></div>
+      <div class="step"><div class="n">3</div><h3>Resume</h3>
+        <p>Folders, tabs, terminals and files reopen, and your note is the first thing you read.</p>
+        <span class="say">“resume shop-api”</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap duo">
+    <figure>
+      <img class="shot" src="img/note.png" alt="A park with the spoken note and two next steps">
+      <figcaption>Your note, split into what you were doing and the steps that come next.</figcaption>
+    </figure>
+    <figure>
+      <img class="shot" src="img/resume.png" alt="Resuming shop-api: the note, one step ticked, the git branch, and VS Code, terminal, Excel and Chrome reopening">
+      <figcaption>Resuming: the note first, then the git branch you were on, while everything reopens.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What comes back</h2>
+    <p class="sub">Not just windows. The things that make “where was I?” take ten minutes.</p>
+    <div class="grid">
+      <div class="card"><h3>Browser tabs</h3><p>As a named tab group in Chrome or Edge. YouTube lectures at the second you stopped.</p></div>
+      <div class="card"><h3>Terminals</h3><p>In their folders. Dev servers like <code>npm run dev</code> start again; nothing else re-runs.</p></div>
+      <div class="card"><h3>Code and folders</h3><p>VS Code workspaces, Explorer folders and apps like Claude or Windows Terminal.</p></div>
+      <div class="card"><h3>Office files</h3><p>Excel at the same sheet and cell, PowerPoint at the same slide, Word documents.</p></div>
+      <div class="card"><h3>PDFs and notes</h3><p>Back in the app they were open in, from your recent files.</p></div>
+      <div class="card"><h3>Git context</h3><p>Branch, uncommitted changes and last commit, and a warning if you've switched branch since.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap duo">
+    <div>
+      <h2>Everything by voice</h2>
+      <p class="sub" style="margin-bottom:20px">Every button has a sentence, and every sentence works typed too.</p>
+      <table>
+        <tr><td>park</td><td>Gather what's open</td></tr>
+        <tr><td>drop 3 · drop youtube</td><td>Leave something out</td></tr>
+        <tr><td>save as dsa · save</td><td>Save it, with a suggested name if you don't give one</td></tr>
+        <tr><td>save and clear</td><td>Save, then close what you saved (Undo for 60 s)</td></tr>
+        <tr><td>resume · resume dsa</td><td>Bring back the last one, or any by name</td></tr>
+        <tr><td>tick 1</td><td>Tick off a next step</td></tr>
+        <tr><td>pin this · start dsa</td><td>Keep a set-up you start every day</td></tr>
+        <tr><td>undo</td><td>Take back the last resume, clear or delete</td></tr>
+      </table>
+    </div>
+    <figure>
+      <img class="shot" src="img/typing.png" alt="Typing resume shop-api: the bar previews the action and lists saved parks with their next step">
+      <figcaption>Your parks, each with the next thing to do. The bar shows what a command will do before it runs.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap meaning">
+    <span class="big" aria-hidden="true">栞</span>
+    <div><h2>Why “Shiori”?</h2>
+      <p class="sub" style="margin:0">Shiori is Japanese for a bookmark: the ribbon you leave in a book so you can open it
+        again at the exact page. Closing your laptop shouldn't mean losing your place. Shiori is that ribbon, for
+        everything on your screen and everything in your head.</p></div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Install in a minute</h2>
+    <p class="sub">No admin rights and nothing to sign up for.</p>
+    <ol class="install">
+      <li><a href="https://github.com/kavyan256/shiori/releases/latest/download/Shiori-setup.zip">Download Shiori-setup.zip</a>,
+        right-click it and choose <b>Extract All</b></li>
+      <li>Double-click <b>Install Shiori.cmd</b>
+        <span>If Windows says “Windows protected your PC”, choose More info → Run anyway. Shiori isn't code-signed yet.</span></li>
+      <li>Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>S</kbd>. A short guide walks you through your first park.
+        <span>For browser tabs: right-click the tray <b>S</b> → Set up browser tabs, and follow the three steps.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="private">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+      <div><h3>Your work stays on your PC</h3>
+        <p>Parks are plain files in <code>%LOCALAPPDATA%\Shiori</code>. No account, no cloud, no API key. The browser
+          extension only talks to Shiori on your own machine.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Shiori · made by <a href="https://github.com/kavyan256">kavyan256</a> for the No Hands: Wispr Challenge</span>
+    <span><a href="https://github.com/kavyan256/shiori">Source on GitHub</a></span>
+  </div>
+</footer>
+</body>
+</html>

@@ -4,7 +4,7 @@
    "title": "Q3 margins.xlsx", "where": {"sheet": "Summary", "cell": "B14"}, ...}
 
 Office answers through COM (the same channel Office's own add-ins use) while it's
-running. On resume Stage asks Office to open each file and go back to the same
+running. On resume Shiori asks Office to open each file and go back to the same
 sheet and cell (Excel) or slide (PowerPoint).
 
 Note: an Office app you started yourself only answers COM after it has lost focus
@@ -24,7 +24,7 @@ import win32com.client
 import win32con
 import win32gui
 
-log = logging.getLogger("stage")
+log = logging.getLogger("shiori")
 
 APPS = {  # exe -> (COM name, list of open files)
     "excel.exe": ("Excel.Application", "Workbooks"),
@@ -120,7 +120,7 @@ def _open_in_office(f):
     """Ask Office itself to open the file, then go to the same place.
 
     Why not just run EXCEL.EXE <file>: an Office app started that way only becomes
-    reachable over COM after it first loses focus, so Stage couldn't select the
+    reachable over COM after it first loses focus, so Shiori couldn't select the
     sheet/cell. Opening through COM avoids that. Launching the .exe stays as a fallback.
     """
     pythoncom.CoInitialize()

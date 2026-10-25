@@ -19,7 +19,7 @@ from pathlib import Path
 
 import paths
 
-DATA_DIR = paths.DATA / "stages"  # see paths.py: ./data from source, %LOCALAPPDATA%\Stage as Stage.exe
+DATA_DIR = paths.DATA / "stages"  # see paths.py: ./data from source, %LOCALAPPDATA%\Shiori as Shiori.exe
 TRASH_DIR = DATA_DIR.parent / "trash"
 
 
@@ -90,7 +90,7 @@ def undelete(trashed, name):
     return True
 
 
-FILLER_WORDS = {"the", "my", "a", "stage", "park", "parks", "part", "parts", "project", "work", "thing", "stuff"}
+FILLER_WORDS = {"the", "my", "a", "shiori", "stage", "park", "parks", "part", "parts", "project", "work", "thing", "stuff"}
 NUMBERS = {w: str(n) for n, w in enumerate("zero one two three four five six seven eight nine ten".split())}
 
 

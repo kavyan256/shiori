@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Stage</title>
+<title>Shiori</title>
 <style>
   /* ---- tokens ------------------------------------------------------------------ */
   :root {
@@ -52,7 +52,7 @@
              transition: border-color var(--base), box-shadow var(--base); }
   textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   textarea::placeholder { color: var(--faint); }
-  /* the auto-run countdown: a 2px line that fills while Stage waits after a paste */
+  /* the auto-run countdown: a 2px line that fills while Shiori waits after a paste */
   .countdown { position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; border-radius: 2px; overflow: hidden; }
   .countdown i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 160ms var(--ease); }
   .field.counting .countdown i { width: 100%; transition: width var(--countdown) linear; }
@@ -99,7 +99,7 @@
   .step.tickable.done .box { background: var(--ok); border-color: var(--ok); animation: pop var(--base) var(--spring); }
   .step.tickable.done .box::after { content: ""; position: absolute; left: 3.5px; top: 0.5px; width: 3.5px; height: 7.5px;
                                 border: solid var(--bg); border-width: 0 2px 2px 0; transform: rotate(45deg); }
-  /* the note before you've said one: the one place Stage asks for your voice */
+  /* the note before you've said one: the one place Shiori asks for your voice */
   .note.voice { display: flex; gap: 12px; align-items: center; border: 1.5px dashed var(--accent);
                 background: var(--accent-soft); padding: 12px 14px; }
   .note.voice .mic { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); display: grid;
@@ -237,7 +237,7 @@
 <body>
 <div class="wrap" id="wrap">
   <header>
-    <div class="logo">S</div><div class="brand">Stage</div>
+    <div class="logo">S</div><div class="brand">Shiori</div>
     <div id="status">Hold <kbd>Ctrl</kbd><kbd>Win</kbd> to speak · or type</div>
   </header>
   <div class="ask" id="ask" hidden></div>
@@ -406,7 +406,7 @@ function parkRow(p, i) {
 
 // First-run guide: three steps that tick off as you do them; the next one is highlighted
 const GUIDE = [
-  ["hotkey", "Open Stage from anywhere", "<kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>S</kbd>"],
+  ["hotkey", "Open Shiori from anywhere", "<kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>S</kbd>"],
   ["saved", "Save what's open", "say or type <b>park</b>, then <b>save</b>"],
   ["resumed", "Bring it back later", "<b>resume</b>: the last one, or <b>resume coding</b>"],
 ];
@@ -454,7 +454,7 @@ const views = {
     return `<section><h2>New park <span class="sub">→ ${esc(name)}${s.name ? "" : " (suggested)"}</span><span class="tag">not saved</span></h2>
       ${noteBlock(s.note, s.steps, "", s.cues, { voice: true })}
       <div class="scroll stagger-rows">${groupsBlock(s.groups, true)}</div>
-      ${s.no_tabs.length ? `<div class="warn">${esc(s.no_tabs.join(" and "))} shows only the tab in front. Add the Stage extension to pick tabs.</div>` : ""}
+      ${s.no_tabs.length ? `<div class="warn">${esc(s.no_tabs.join(" and "))} shows only the tab in front. Add the Shiori extension to pick tabs.</div>` : ""}
       ${s.message ? `<div class="msg">${esc(s.message)}</div>` : ""}
       <div class="actions">
         ${kept ? `<button class="primary" data-say="${s.clear ? "save and clear" : "save"}">${s.clear ? "Save and clear" : "Save"} as ${esc(name)} · ${kept} of ${total}</button>`
@@ -714,7 +714,7 @@ function hideIfLeft() {
 window.addEventListener("blur", () => setTimeout(hideIfLeft, 0));
 
 // ---- called from Python ------------------------------------------------------------------
-window.Stage = {
+window.Shiori = {
   show(v) { if (!busy) render(v); },  // Python pushing an update (e.g. tabs arrived)
   open() {
     stopCountdown();
