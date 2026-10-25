@@ -35,6 +35,7 @@ PIN = re.compile(r"^pin(?:\s+(?:this|it|the park|that))?(?:\s+(?:park|preset))?(
 UNPIN = re.compile(r"^unpin\s+(?:the\s+)?(?:park\s+)?(?P<name>.+)$", re.I)
 START = re.compile(r"^(?:start|launch|set ?up|fire up|open (?:the )?preset)\s+(?:my\s+|the\s+)?(?P<name>.+?)"
                    r"(?:\s+(?:preset|park|setup|stage))?$", re.I)
+HIDE_GUIDE = re.compile(r"^(?:hide|skip|close|dismiss)(?: the)? (?:guide|tips|getting started|tutorial)$|^got it$", re.I)
 UNDO = re.compile(r"^(?:undo|undo (?:that|it|this)|take (?:that|it) back)$", re.I)
 # "…and clear": close what was parked afterwards. Only looked for at the end of a park/save command.
 AND_CLEAR = re.compile(r"(?:^|[\s,.]+)(?:and\s+)?(?:clear|close)(?:\s+(?:it all|everything|them|up|the desk|my desk))?$", re.I)
@@ -138,6 +139,8 @@ def parse(text):
     text = LEAD_IN.sub("", text.strip()).rstrip(".!?")
     if UNDO.match(text):
         return ("undo",)
+    if HIDE_GUIDE.match(text):
+        return ("hide_guide",)
     if LIST.match(text):
         return ("list",)
     short, clear = split_clear(text)

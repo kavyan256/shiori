@@ -148,6 +148,28 @@
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
   button.danger { color: var(--danger); }
   button.danger.primary { background: var(--danger); border-color: var(--danger); color: var(--bg); }
+  /* first-run guide */
+  .guide { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px 12px; background: var(--panel); }
+  .guide-head { display: flex; align-items: center; justify-content: space-between; color: var(--muted);
+                font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+  button.ghost { background: none; border: 0; color: var(--muted); padding: 2px 6px; font-size: 12px; text-transform: none; letter-spacing: 0; }
+  button.ghost:hover { color: var(--text); }
+  .guide-bar { height: 3px; border-radius: 3px; background: var(--raised); margin: 6px 0 8px; overflow: hidden; }
+  .guide-bar i { display: block; height: 100%; background: var(--ok); border-radius: 3px; transition: width var(--slow) var(--ease);
+                 animation: grow var(--slow) var(--ease); }
+  @keyframes grow { from { width: 0; } }
+  .gstep { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 9px;
+           animation: rise var(--base) var(--ease) backwards; animation-delay: calc(var(--i) * 60ms); }
+  .gstep .gtitle { flex: 1; }
+  .gstep .ghow { color: var(--muted); font-size: 12px; }
+  .gstep .ghow b { color: var(--text); font-weight: 600; }
+  .gstep.done .check { background: var(--ok); border-color: var(--ok); }
+  .gstep.done .check svg { stroke-dashoffset: 0; transition-delay: calc(var(--i) * 60ms + 120ms); }
+  .gstep.done .gtitle { color: var(--muted); }
+  .gstep.next { background: var(--accent-soft); }
+  .gstep.next .check { border-color: var(--accent); animation: breathe 1.6s ease-in-out infinite; }
+  @keyframes breathe { 50% { box-shadow: 0 0 0 4px var(--accent-soft); } }
+  .gfoot { margin-top: 8px; color: var(--muted); font-size: 12px; }
   button.undo { position: relative; overflow: hidden; }
   button.undo i { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--accent);
                   transform-origin: left; animation: drain linear forwards; }
@@ -235,6 +257,7 @@ function intent(text) {
   const t = text.trim().replace(/^(?:(?:ok(?:ay)?|so|please|now|let'?s|can you|could you)[\s,]+)+/i, "");
   if (!t) return "";
   if (/^(undo|undo (that|it|this)|take (that|it) back)$/i.test(t)) return "Undo";
+  if (/^((hide|skip|close|dismiss)( the)? (guide|tips|getting started|tutorial)|got it)$/i.test(t)) return "Hide the guide";
   if (state.view === "ask") return `Name → ${t}`;
   if (state.view === "confirm") return /^(yes|yeah|yep|confirm|sure|ok)/i.test(t) ? `Delete ${state.name}` : `Keep ${state.name}`;
   let m;
@@ -318,20 +341,46 @@ setInterval(() => {
   document.querySelectorAll("[data-expires]").forEach(b => { if (Date.now() > +b.dataset.expires) { b.remove(); fit(); } });
 }, 500);
 
+function parkRow(p, i) {
+  return `<div class="row" style="--i:${i}" data-say="view ${esc(p.name)}" data-nav data-name="${esc(p.name)}">
+    <span class="dot" style="background:${color(p.name)}"></span>
+    <span class="title"><b>${esc(p.name)}</b>${p.preset ? ` <span class="badge">preset</span>` : ""}${p.next ? ` <span class="meta">· next: ${esc(p.next)}</span>` : ""}</span>
+    <span class="meta">${esc(p.ago)} · ${plural(p.items, "item")}${p.versions > 1 ? ` · ${p.versions} versions` : ""}</span></div>`;
+}
+
+// First-run guide: three steps that tick off as you do them; the next one is highlighted
+const GUIDE = [
+  ["hotkey", "Open Stage from anywhere", "<kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>S</kbd>"],
+  ["saved", "Save what's open", "say or type <b>park</b>, then <b>save</b>"],
+  ["resumed", "Bring it back later", "<b>resume</b> and its name"],
+];
+function guideCard(progress) {
+  const done = GUIDE.filter(([key]) => progress[key]).length;
+  const next = GUIDE.findIndex(([key]) => !progress[key]);
+  return `<div class="guide">
+    <div class="guide-head"><span>Getting started · ${done} of 3</span>
+      <button class="ghost" data-say="hide guide">Hide</button></div>
+    <div class="guide-bar"><i style="width:${(done / 3) * 100}%"></i></div>
+    ${GUIDE.map(([key, title, how], i) => `<div class="gstep ${progress[key] ? "done" : ""} ${i === next ? "next" : ""}" style="--i:${i}">
+      <span class="check">${CHECK}</span><span class="gtitle">${title}</span><span class="ghow">${how}</span></div>`).join("")}
+    <div class="gfoot">Typing works too, no Wispr needed. With Wispr Flow: hold <kbd>Ctrl</kbd><kbd>Win</kbd> and speak.</div>
+  </div>`;
+}
+
 // ---- each view ---------------------------------------------------------------------
 const views = {
   home(s) {
     const msg = s.message ? `<div class="msg">${esc(s.message)}${s.undo ? ` ${undoButton(s, true)}` : ""}</div>` : "";
     const draft = s.draft ? `<div class="foot">You have an unsaved park. Say “park” to go back to it.</div>` : "";
+    const guide = s.guide ? guideCard(s.guide) : "";
+    if (!s.parks.length && guide) return `<section>${msg}${guide}${draft}</section>`;
+    if (s.parks.length && guide) return `<section>${msg}${guide}<div class="label">Your parks</div>
+      <div class="scroll stagger">${s.parks.map((p, i) => parkRow(p, i)).join("")}</div>${draft}</section>`;
     if (!s.parks.length) return `<section>${msg}<div class="empty-state">Nothing parked yet.<br>
       Say <b>“Park”</b> to save what's open, drop what you don't need, then <b>“save as coding”</b>.<br>
       Later: <b>“resume coding”</b>.</div>${draft}</section>`;
     return `<section>${msg}<div class="label">Your parks · ↑↓ Enter to resume · click to view</div>
-      <div class="scroll stagger">${s.parks.map((p, i) => `<div class="row" style="--i:${i}" data-say="view ${esc(p.name)}" data-nav data-name="${esc(p.name)}">
-        <span class="dot" style="background:${color(p.name)}"></span>
-        <span class="title"><b>${esc(p.name)}</b>${p.preset ? ` <span class="badge">preset</span>` : ""}${p.next ? ` <span class="meta">· next: ${esc(p.next)}</span>` : ""}</span>
-        <span class="meta">${esc(p.ago)} · ${plural(p.items, "item")}${p.versions > 1 ? ` · ${p.versions} versions` : ""}</span></div>`).join("")}
-      </div>${draft}</section>`;
+      <div class="scroll stagger">${s.parks.map((p, i) => parkRow(p, i)).join("")}</div>${draft}</section>`;
   },
 
   draft(s) {

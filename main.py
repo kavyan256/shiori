@@ -31,6 +31,7 @@ import winerror
 from PIL import Image, ImageDraw
 
 import browser
+import onboarding
 import paths
 import store
 from controller import Controller
@@ -167,6 +168,7 @@ def listen_for_hotkey():
             break
         if msg[1] == win32con.WM_HOTKEY:
             log.info("hotkey pressed (bar %s)", "open" if bar_visible() else "hidden")
+            onboarding.mark("hotkey")  # guide step 1: you found the hotkey
             try:
                 toggle_bar()
             except Exception:
@@ -269,10 +271,19 @@ def tabs_arrived(browser_name):
 
 
 def on_started():
+    first = onboarding.first_run()
+    onboarding.start(has_parks=bool(store.list_stages()))
     browser.on_report = tabs_arrived
     browser.start()
     threading.Thread(target=listen_for_hotkey, daemon=True).start()
     start_tray()
+    if first:  # say hello: a Windows notification, and the bar opens once with the guide
+        log.info("first run: showing the guide")
+        try:
+            icon.notify(f"Stage is running in the tray. Press {HOTKEY_LABEL} any time.", "Stage")
+        except Exception:
+            pass
+        threading.Timer(1.5, show_bar).start()
 
 
 if __name__ == "__main__":

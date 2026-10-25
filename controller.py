@@ -20,6 +20,7 @@ import store
 import clear
 import naming
 import office
+import onboarding
 from capture import list_windows
 from commands import YES, app_name, parse, parse_draft, pick_windows
 from items import current_items, kind, tab_items
@@ -93,6 +94,9 @@ class Controller:
 
         if command[0] == "undo":
             return self.undo()
+        if command[0] == "hide_guide":
+            onboarding.hide()
+            return self.home("Guide hidden. Say “help” any time for the commands.")
         if command[0] == "list":
             return self.home()
         if command[0] == "resume":
@@ -203,6 +207,7 @@ class Controller:
         name = existing["name"] if existing else name
         draft, self.draft = self.draft, None
         store.park(name, draft["items"], draft["note"], draft["steps"], ticked_cues(draft))
+        onboarding.mark("saved")
         kept = sum(1 for i in draft["items"] if i["keep"])
         versions = len(store.load(name)["snapshots"])
         extra = f" · version {versions}" if versions > 1 else ""
@@ -267,7 +272,8 @@ class Controller:
                 "next": last["next_steps"][0] if last["next_steps"] else "",
                 "items": len(kept), "versions": len(s["snapshots"]), "preset": bool(s.get("pinned")),
             })
-        return {"view": "home", "parks": parks, "draft": bool(self.draft), "message": message}
+        return {"view": "home", "parks": parks, "draft": bool(self.draft), "message": message,
+                "guide": onboarding.guide()}
 
     def view(self, spoken, message=""):
         name = store.find(spoken)
@@ -300,7 +306,8 @@ class Controller:
 
     def remember_resume(self, name, items):
         """Before reopening: note which windows and Office files are already open, so undo
-        closes only what this resume added."""
+        closes only what this resume added. (Also ticks guide step 3.)"""
+        onboarding.mark("resumed")
         open_files = {f["path"].lower() for f in office.current()}
         files = [i["path"] for i in items if i.get("keep", True) and kind(i) == "file"
                  and i["app"] in office.APPS and i["path"].lower() not in open_files]
