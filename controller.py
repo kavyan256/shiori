@@ -85,6 +85,8 @@ class Controller:
             command = parse(text)
             if command[0] == "park":
                 return self.start_draft(command[1], command[2], clear_after=command[3])
+            if command[0] == "save_first":
+                return self.home("Say “park” first: it gathers what's open. Then your note, then “save as …”.")
             if command[0] == "delete":
                 return self.ask_delete(command[1])
             if command[0] == "pin":
@@ -294,6 +296,11 @@ class Controller:
         }
 
     def resume(self, spoken):
+        if not spoken:  # "resume" alone: the newest park
+            parks = store.list_stages()
+            if not parks:
+                return self.home("Nothing parked yet. Say “park” to save what's open.")
+            spoken = parks[0]["name"]
         name = store.find(spoken)
         if not name:
             return self.not_found(spoken)
@@ -371,7 +378,7 @@ class Controller:
 
     def help(self):
         return {"view": "message", "title": "Try one of these",
-                "lines": ["Park", "Show my parks", "Resume coding", "View coding", "Pin this · Start dsa",
+                "lines": ["Park → your note → save as coding", "Resume  (the last one) · Resume coding", "Show my parks", "View coding", "Pin this · Start dsa",
                           "Park dsa (ticks dsa's things for you)", "Delete coding"]}
 
 

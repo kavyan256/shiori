@@ -19,9 +19,12 @@ import shutil
 import subprocess
 
 import psutil
+import win32gui
+import win32process
 
 SHELLS = {"powershell.exe", "pwsh.exe", "cmd.exe", "bash.exe", "nu.exe"}
 HELPERS = {"conhost.exe", "openconsole.exe"}
+TERMINAL_WINDOW_CLASS = "CASCADIA_HOSTING_WINDOW_CLASS"  # Windows Terminal's main window
 # Long-running dev commands that are safe to start again on resume
 RERUN_OK = re.compile(
     r"^(?:(?:npm|pnpm|yarn|bun)(?: run)? (?:dev|start|serve|watch|preview)\b"
@@ -58,15 +61,25 @@ def _stage_family():
     return {me.pid} | {p.pid for p in me.parents()}
 
 
+def _terminal_pids():
+    """Windows Terminal processes, found through their windows: far faster than
+    asking every process on the PC for its name (~0.6 s), and free when none is open."""
+    pids = set()
+    win32gui.EnumWindows(lambda hwnd, _: pids.add(win32process.GetWindowThreadProcessId(hwnd)[1])
+                         if win32gui.GetClassName(hwnd) == TERMINAL_WINDOW_CLASS else None, None)
+    return pids
+
+
 def current():
     """Every shell tab in Windows Terminal right now."""
+    hosts = _terminal_pids()
+    if not hosts:
+        return []
     skip = _stage_family()
     out = []
-    for host in psutil.process_iter(["name"]):
-        if (host.info["name"] or "").lower() != "windowsterminal.exe":
-            continue
+    for pid in hosts:
         try:
-            descendants = host.children(recursive=True)
+            descendants = psutil.Process(pid).children(recursive=True)
         except psutil.Error:
             continue
         for shell in descendants:

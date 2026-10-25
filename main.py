@@ -11,6 +11,7 @@ Run with logs visible:  .venv\\Scripts\\python.exe main.py
 """
 import json
 import logging
+import logging.handlers
 import os
 import sys
 import threading
@@ -244,7 +245,8 @@ def log_path():
 
 def setup_logging():
     log_path().parent.mkdir(parents=True, exist_ok=True)
-    handlers = [logging.FileHandler(log_path(), encoding="utf-8")]
+    # at most ~2 MB on disk: the log rolls over at 1 MB and keeps one old copy
+    handlers = [logging.handlers.RotatingFileHandler(log_path(), maxBytes=1_000_000, backupCount=1, encoding="utf-8")]
     if sys.stdout:  # pythonw has no console
         sys.stdout.reconfigure(encoding="utf-8")
         handlers.append(logging.StreamHandler(sys.stdout))

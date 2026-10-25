@@ -13,6 +13,7 @@ import psutil
 
 import win32con
 import win32gui
+import win32process
 
 import browser
 import docs
@@ -53,10 +54,18 @@ def unminimize(hwnds):
 
 
 def running_app_id(app):
-    """App ID of a running Store-style app, for parks saved before Stage recorded it."""
-    for p in psutil.process_iter(["name", "pid"]):
-        if (p.info["name"] or "").lower() == app and (found := app_id_of(p.info["pid"])):
-            return found
+    """App ID of a running Store-style app, for parks saved before Stage recorded it.
+    Looks only at processes that own a window (a tray app has a hidden one) and are
+    packaged apps, instead of asking every process on the PC for its name (~0.7 s)."""
+    pids = set()
+    win32gui.EnumWindows(lambda hwnd, _: pids.add(win32process.GetWindowThreadProcessId(hwnd)[1]), None)
+    for pid in pids:
+        if found := app_id_of(pid):
+            try:
+                if psutil.Process(pid).name().lower() == app:
+                    return found
+            except psutil.Error:
+                pass
     return ""
 
 

@@ -352,7 +352,7 @@ function parkRow(p, i) {
 const GUIDE = [
   ["hotkey", "Open Stage from anywhere", "<kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>S</kbd>"],
   ["saved", "Save what's open", "say or type <b>park</b>, then <b>save</b>"],
-  ["resumed", "Bring it back later", "<b>resume</b> and its name"],
+  ["resumed", "Bring it back later", "<b>resume</b>: the last one, or <b>resume coding</b>"],
 ];
 function guideCard(progress) {
   const done = GUIDE.filter(([key]) => progress[key]).length;

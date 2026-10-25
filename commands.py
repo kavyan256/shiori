@@ -21,7 +21,12 @@ import re
 import store
 
 # --- any time ---
-PARK = re.compile(r"^(?:park|new park)(?:\s+(?:this|everything|all|now))?(?:[\s.,:;!?]+(?P<rest>.+))?$", re.I | re.S)
+PARK = re.compile(r"^(?:park|new park)(?:\s+(?:this|everything|it all|all(?: of)?(?: this| these| it)?|these|now))?"
+                  r"(?:\s+(?:as|called|named))?(?:[\s.,:;!?]+(?P<rest>.+))?$", re.I | re.S)
+# "resume" alone, "resume the last one", "pick up where I left off": the newest park
+RESUME_LAST = re.compile(r"^(?:resume|continue|go back|back to work|pick up where i left off)"
+                         r"(?:\s+(?:it|that|this|last|latest|the (?:last|latest)(?: one| park)?|my (?:last|latest)(?: one| park)?"
+                         r"|where i left off))?$", re.I)
 RESUME = re.compile(r"^(?:resume|retrieve|restore|back to|go back to|continue|switch to|open)\s+(?P<name>.+)$", re.I | re.S)
 # "parts": Wispr often hears "parks" as "parts"
 LIST = re.compile(r"^(?:list|parks|parts|stages|(?:show|see|view)(?:ing)?(?: me)?(?: all)? (?:of )?(?:my |the )?"
@@ -39,6 +44,8 @@ HIDE_GUIDE = re.compile(r"^(?:hide|skip|close|dismiss)(?: the)? (?:guide|tips|ge
 UNDO = re.compile(r"^(?:undo|undo (?:that|it|this)|take (?:that|it) back)$", re.I)
 # "…and clear": close what was parked afterwards. Only looked for at the end of a park/save command.
 AND_CLEAR = re.compile(r"(?:^|[\s,.]+)(?:and\s+)?(?:clear|close)(?:\s+(?:it all|everything|them|up|the desk|my desk))?$", re.I)
+PARK_NAME_WORDS = re.compile(r"^(?:and\s+)?(?:save\s+(?:it\s+|this\s+)?)?(?:as|called|named)\s+", re.I)
+AND_SAVE = re.compile(r"[\s,.]+and\s+save(?:\s+it)?$", re.I)
 YES = re.compile(r"^(?:yes|yeah|yep|yup|confirm|do it|delete it|sure|ok(?:ay)?)\b", re.I)
 # --- while a draft park is open ---
 # longer phrases first, so "add back chrome" isn't read as add "back chrome"
@@ -134,7 +141,7 @@ def split_clear(text):
 
 def parse(text):
     """Commands that work any time.
-    -> ('park', name or '', note, clear) | ('resume', name) | ('view', name) | ('delete', name)
+    -> ('park', name or '', note, clear) | ('resume', name or '') | ('view', name) | ('delete', name)
        | ('pin', name or '') | ('unpin', name) | ('start', name) | ('undo',) | ('list',) | ('help',)"""
     text = LEAD_IN.sub("", text.strip()).rstrip(".!?")
     if UNDO.match(text):
@@ -143,18 +150,22 @@ def parse(text):
         return ("hide_guide",)
     if LIST.match(text):
         return ("list",)
+    if RESUME_LAST.match(text):
+        return ("resume", "")  # the newest park
     short, clear = split_clear(text)
-    if clear and (m := PARK.match(short)) and not m["rest"]:
-        return ("park", "", "", True)  # "park and clear"
+    if m := PARK.match(short):
+        # "park and save as coding" / "park coding and save": the name is coding; saving stays its own step
+        rest = PARK_NAME_WORDS.sub("", AND_SAVE.sub("", (m["rest"] or "").strip()))
+        name, note = split_park(rest) if rest else ("", "")
+        return ("park", clean_name(name), note, clear)
+    if SAVE.match(short) or DONE.match(short):
+        return ("save_first",)  # saving is the last step: "park" comes first
     if m := UNPIN.match(text):
         return ("unpin", clean_name(m["name"]))
     if m := PIN.match(text):
         return ("pin", saved_name(m["name"] or ""))
     if m := START.match(text):
         return ("start", clean_name(m["name"]))
-    if m := PARK.match(text):
-        name, note = split_park(m["rest"]) if m["rest"] else ("", "")
-        return ("park", clean_name(name), note, False)
     if m := RESUME.match(text) or VIEW.match(text):
         name = clean_name(m["name"])
         if LIST.match(re.sub(r"^(?:showing|show|all)\s+", "show ", name)):

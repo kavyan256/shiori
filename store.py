@@ -35,9 +35,7 @@ def path_of(name):
 def load(name):
     """The whole park (name + every version), or None if it doesn't exist."""
     path = path_of(name)
-    if not path.exists():
-        return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    return _read(path) if path.exists() else None
 
 
 def save(stage):
@@ -137,11 +135,36 @@ def latest(name):
     return stage["snapshots"][-1] if stage else None
 
 
+_texts = {}  # path -> (modified time, size, text): opening files is the slow part, parsing isn't
+
+
+def _text(path):
+    """A park file's text, re-read from disk only when it has changed."""
+    st = path.stat()
+    key = (st.st_mtime_ns, st.st_size)
+    cached = _texts.get(path)
+    if not cached or cached[0] != key:
+        cached = _texts[path] = (key, path.read_text(encoding="utf-8"))
+    return cached[1]
+
+
+def _read(path):
+    """A park, or None if the file is damaged (edited by hand, disk trouble). A damaged
+    file is renamed to .broken, so it can't break the list and nothing is lost."""
+    try:
+        stage = json.loads(_text(path))
+        stage["snapshots"][-1]["parked_at"]  # the parts everything relies on
+        return stage
+    except (ValueError, KeyError, IndexError, TypeError):
+        path.replace(path.with_suffix(".broken"))
+        return None
+
+
 def list_stages():
     """Every park with its versions, most recently parked first."""
     if not DATA_DIR.exists():
         return []
-    stages = [json.loads(p.read_text(encoding="utf-8")) for p in DATA_DIR.glob("*.json")]
+    stages = [s for s in map(_read, DATA_DIR.glob("*.json")) if s]
     return sorted(stages, key=lambda s: s["snapshots"][-1]["parked_at"], reverse=True)
 
 
