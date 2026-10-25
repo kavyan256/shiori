@@ -83,14 +83,17 @@ def current():
 def close(path):
     """Close an open Office file if it has no unsaved changes. True if closed."""
     pythoncom.CoInitialize()
-    for com_name, collection in APPS.values():
+    for exe, (com_name, collection) in APPS.items():
         try:
             app = win32com.client.GetActiveObject(com_name)
             for doc in list(getattr(app, collection)):
                 if doc.FullName.lower() == path.lower():
                     if not doc.Saved:
                         return False  # never throw away your edits
-                    doc.Close(False)  # False: don't save (there's nothing to save)
+                    if exe == "powerpnt.exe":
+                        doc.Close()  # PowerPoint's Close takes no arguments
+                    else:
+                        doc.Close(False)  # False: don't save (there's nothing to save)
                     return True
         except Exception:
             continue
