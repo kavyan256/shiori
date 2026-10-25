@@ -85,8 +85,10 @@ def current():
         for shell in descendants:
             try:
                 name = shell.name().lower()
-                if name not in SHELLS or shell.parent().name().lower() in SHELLS:
-                    continue  # not a shell, or a shell started inside another shell
+                parent = shell.parent()
+                if name not in SHELLS or not (parent.pid == pid or parent.name().lower() in HELPERS):
+                    continue  # a tab's shell is started by the terminal itself; anything deeper isn't a tab
+                              # (a shell inside a shell, or the hidden cmd that "npm run dev" starts)
                 folder, command = shell.cwd(), ""
                 for child in shell.children():
                     if child.name().lower() in HELPERS or child.pid in skip:
