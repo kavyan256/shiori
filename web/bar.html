@@ -148,6 +148,11 @@
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
   button.danger { color: var(--danger); }
   button.danger.primary { background: var(--danger); border-color: var(--danger); color: var(--bg); }
+  button.undo { position: relative; overflow: hidden; }
+  button.undo i { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--accent);
+                  transform-origin: left; animation: drain linear forwards; }
+  @keyframes drain { to { transform: scaleX(0); } }
+  button.undo.small { padding: 1px 10px; font-size: 12px; margin-left: 6px; }
   .pills { display: flex; flex-wrap: wrap; gap: 6px; }
   .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
           background: var(--raised); font-size: 12px; }
@@ -229,14 +234,19 @@ function busyText(text) {
 function intent(text) {
   const t = text.trim().replace(/^(?:(?:ok(?:ay)?|so|please|now|let'?s|can you|could you)[\s,]+)+/i, "");
   if (!t) return "";
+  if (/^(undo|undo (that|it|this)|take (that|it) back)$/i.test(t)) return "Undo";
   if (state.view === "ask") return `Name → ${t}`;
   if (state.view === "confirm") return /^(yes|yeah|yep|confirm|sure|ok)/i.test(t) ? `Delete ${state.name}` : `Keep ${state.name}`;
   let m;
   if (state.view === "draft") {
     if ((m = t.match(/^(drop|remove|skip|untick|keep|add|tick)\s+(.+)/i))) return `${/^(keep|add|tick)/i.test(m[1]) ? "Keep" : "Drop"} → ${m[2]}`;
-    if ((m = t.match(/^(?:(?:done|finished)[\s,.]+)?(?:save|name it|call it)\b(.*)/i))) {
-      const name = m[1].split(/\s(?:as|called|named)\s/i).pop().replace(/^\s*(?:it|this|park)\s*/i, "").trim();
-      return `Save as → ${name || state.name || "…"}`;
+    const clearing = /(^|[\s,.]+)(and\s+)?(clear|close)(\s+(it all|everything|them|up|the desk|my desk))?$/i;
+    const short = t.replace(clearing, "").trim();
+    const verb = clearing.test(t) ? "Save and clear" : "Save as";
+    if (!short && clearing.test(t)) return `Save and clear → ${state.name || state.suggested || "…"}`;
+    if ((m = short.match(/^(?:(?:done|finished)[\s,.]+)?(?:save|name it|call it)\b(.*)/i)) || /^(done|finished|complete)$/i.test(short)) {
+      const name = (m ? m[1] : "").split(/\s(?:as|called|named)\s/i).pop().replace(/^\s*(?:it|this|park)\s*/i, "").trim();
+      return `${verb} → ${name || state.name || state.suggested || "…"}`;
     }
     if (/^(cancel|discard)/i.test(t)) return "Cancel this park";
     if (/^(show|list|resume|view|open|start)\b/i.test(t)) return "";
@@ -298,10 +308,20 @@ function groupsBlock(groups, clickable) {
   }).join("");
 }
 
+// Undo: a button whose underline drains away over the seconds left, then the button goes
+function undoButton(s, small = false) {
+  if (!s.undo) return "";
+  return `<button class="undo ${small ? "small" : ""}" data-say="undo" data-expires="${Date.now() + s.undo * 1000}">Undo
+    <i style="animation-duration:${s.undo}s"></i></button>`;
+}
+setInterval(() => {
+  document.querySelectorAll("[data-expires]").forEach(b => { if (Date.now() > +b.dataset.expires) { b.remove(); fit(); } });
+}, 500);
+
 // ---- each view ---------------------------------------------------------------------
 const views = {
   home(s) {
-    const msg = s.message ? `<div class="msg">${esc(s.message)}</div>` : "";
+    const msg = s.message ? `<div class="msg">${esc(s.message)}${s.undo ? ` ${undoButton(s, true)}` : ""}</div>` : "";
     const draft = s.draft ? `<div class="foot">You have an unsaved park. Say “park” to go back to it.</div>` : "";
     if (!s.parks.length) return `<section>${msg}<div class="empty-state">Nothing parked yet.<br>
       Say <b>“Park”</b> to save what's open, drop what you don't need, then <b>“save as coding”</b>.<br>
@@ -317,13 +337,17 @@ const views = {
   draft(s) {
     const total = s.groups.reduce((n, g) => n + g.items.length, 0);
     const kept = s.groups.reduce((n, g) => n + g.items.filter(i => i.keep).length, 0);
-    return `<section><h2>New park ${s.name ? `<span class="sub">→ ${esc(s.name)}</span>` : ""}<span class="tag">not saved</span></h2>
+    const name = s.name || s.suggested;  // "save" alone uses the suggestion
+    return `<section><h2>New park <span class="sub">→ ${esc(name)}${s.name ? "" : " (suggested)"}</span><span class="tag">not saved</span></h2>
       ${noteBlock(s.note, s.steps, "No note yet. Say what you were doing and what's next.", s.cues)}
       <div class="scroll stagger-rows">${groupsBlock(s.groups, true)}</div>
       ${s.no_tabs.length ? `<div class="warn">${esc(s.no_tabs.join(" and "))} shows only the tab in front. Add the Stage extension to pick tabs.</div>` : ""}
       ${s.message ? `<div class="msg">${esc(s.message)}</div>` : ""}
-      <div class="actions"><button class="primary" data-say="save">Save ${kept} of ${total}</button><button data-say="cancel">Cancel</button></div>
-      <div class="foot">“drop 3” · “drop youtube” · say your note · “save as coding” · ↑↓ Space to tick</div></section>`;
+      <div class="actions">
+        <button class="primary" data-say="${s.clear ? "save and clear" : "save"}">${s.clear ? "Save and clear" : "Save"} as ${esc(name)} · ${kept} of ${total}</button>
+        ${s.clear ? `<button data-say="save">Save, keep open</button>` : `<button data-say="save and clear" title="Save, then close what you saved">Save and clear</button>`}
+        <button data-say="cancel">Cancel</button></div>
+      <div class="foot">“drop 3” · say your note · “save” · “save as coding” · “save and clear” · ↑↓ Space to tick</div></section>`;
   },
 
   ask(s) { return ""; },
@@ -349,8 +373,12 @@ const views = {
     const buttons = pinnedCount
       ? `<button class="primary" data-say="start ${esc(s.name)}">Start preset</button><button data-say="resume ${esc(s.name)}">Resume last park</button>`
       : `<button class="primary" data-say="resume ${esc(s.name)}">Resume</button><button data-say="pin ${esc(s.name)}">Pin as preset</button>`;
-    return `<section>${title}${message}${noteBlock(s.note, s.steps, "No note", s.cues)}${items}${pinned}${versions}
-      <div class="actions">${buttons}<button data-say="list">All parks</button>
+    // after "save and clear": what closed, and what was left open on purpose (and why)
+    const cleared = s.cleared ? `<div class="msg">${s.cleared.length ? `Cleared ${esc(s.cleared.join(", "))}` : "Nothing needed closing"}</div>
+      ${s.left_open?.length ? `<details><summary>${plural(s.left_open.length, "thing")} left open</summary>${
+        s.left_open.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : ""}` : "";
+    return `<section>${title}${message}${noteBlock(s.note, s.steps, "No note", s.cues)}${items}${cleared}${pinned}${versions}
+      <div class="actions">${undoButton(s)}${buttons}<button data-say="list">All parks</button>
       <button class="danger" data-say="delete ${esc(s.name)}">Delete</button></div></section>`;
   },
 
@@ -359,10 +387,12 @@ const views = {
     const pills = s.opened.map((o, i) => `<span class="pill" data-open="${i}"><span class="spin"></span><span class="ok">✓</span>${esc(o.replace(/\s+/g, " "))}</span>`).join("");
     const skipped = s.skipped.length ? `<details><summary>${s.skipped.length} not reopened</summary>${
       s.skipped.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : "";
-    return `<section><h2>${started ? "Started" : "Resuming"} ${esc(s.name)} <span class="sub">${started ? "last parked" : "parked"} ${esc(s.ago)}</span></h2>
+    const verb = { Started: "Started", Reopened: "Reopened" }[s.verb] || "Resuming";
+    return `<section><h2>${verb} ${esc(s.name)} <span class="sub">${started ? "last parked" : "parked"} ${esc(s.ago)}</span></h2>
       ${noteBlock(s.note, s.steps, "No note", s.cues)}
       <div class="label">${s.opened.length ? "Opening" : "Nothing to open"}</div>
-      <div class="pills stagger">${pills || `<span class="meta">It's all already here.</span>`}</div>${skipped}</section>`;
+      <div class="pills stagger">${pills || `<span class="meta">It's all already here.</span>`}</div>${skipped}
+      ${s.undo ? `<div class="actions">${undoButton(s)}</div>` : ""}</section>`;
   },
 
   confirm(s) {
@@ -389,7 +419,7 @@ function render(s, { fresh = false } = {}) {
   state = s;
   $("ask").hidden = s.view !== "ask";
   $("ask").textContent = s.view === "ask" ? s.prompt : "";
-  q.placeholder = PLACEHOLDER[s.view] || PLACEHOLDER.home;
+  q.placeholder = s.view === "ask" && s.suggested ? `${s.suggested} (Enter to use)` : PLACEHOLDER[s.view] || PLACEHOLDER.home;
   view.innerHTML = views[s.view](s);
 
   const section = view.querySelector("section");

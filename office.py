@@ -80,6 +80,23 @@ def current():
     return out
 
 
+def close(path):
+    """Close an open Office file if it has no unsaved changes. True if closed."""
+    pythoncom.CoInitialize()
+    for com_name, collection in APPS.values():
+        try:
+            app = win32com.client.GetActiveObject(com_name)
+            for doc in list(getattr(app, collection)):
+                if doc.FullName.lower() == path.lower():
+                    if not doc.Saved:
+                        return False  # never throw away your edits
+                    doc.Close(False)  # False: don't save (there's nothing to save)
+                    return True
+        except Exception:
+            continue
+    return False
+
+
 def exe_path(exe):
     for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
         try:

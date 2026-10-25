@@ -35,6 +35,9 @@ PIN = re.compile(r"^pin(?:\s+(?:this|it|the park|that))?(?:\s+(?:park|preset))?(
 UNPIN = re.compile(r"^unpin\s+(?:the\s+)?(?:park\s+)?(?P<name>.+)$", re.I)
 START = re.compile(r"^(?:start|launch|set ?up|fire up|open (?:the )?preset)\s+(?:my\s+|the\s+)?(?P<name>.+?)"
                    r"(?:\s+(?:preset|park|setup|stage))?$", re.I)
+UNDO = re.compile(r"^(?:undo|undo (?:that|it|this)|take (?:that|it) back)$", re.I)
+# "…and clear": close what was parked afterwards. Only looked for at the end of a park/save command.
+AND_CLEAR = re.compile(r"(?:^|[\s,.]+)(?:and\s+)?(?:clear|close)(?:\s+(?:it all|everything|them|up|the desk|my desk))?$", re.I)
 YES = re.compile(r"^(?:yes|yeah|yep|yup|confirm|do it|delete it|sure|ok(?:ay)?)\b", re.I)
 # --- while a draft park is open ---
 # longer phrases first, so "add back chrome" isn't read as add "back chrome"
@@ -122,13 +125,24 @@ def saved_name(said):
     return clean_name(parts[-1])
 
 
+def split_clear(text):
+    """'save as coding and clear' -> ('save as coding', True)."""
+    stripped = AND_CLEAR.sub("", text)
+    return stripped.strip(), stripped != text
+
+
 def parse(text):
     """Commands that work any time.
-    -> ('park', name or '', note) | ('resume', name) | ('view', name) | ('delete', name)
-       | ('pin', name or '') | ('unpin', name) | ('start', name) | ('list',) | ('help',)"""
+    -> ('park', name or '', note, clear) | ('resume', name) | ('view', name) | ('delete', name)
+       | ('pin', name or '') | ('unpin', name) | ('start', name) | ('undo',) | ('list',) | ('help',)"""
     text = LEAD_IN.sub("", text.strip()).rstrip(".!?")
+    if UNDO.match(text):
+        return ("undo",)
     if LIST.match(text):
         return ("list",)
+    short, clear = split_clear(text)
+    if clear and (m := PARK.match(short)) and not m["rest"]:
+        return ("park", "", "", True)  # "park and clear"
     if m := UNPIN.match(text):
         return ("unpin", clean_name(m["name"]))
     if m := PIN.match(text):
@@ -137,7 +151,7 @@ def parse(text):
         return ("start", clean_name(m["name"]))
     if m := PARK.match(text):
         name, note = split_park(m["rest"]) if m["rest"] else ("", "")
-        return ("park", clean_name(name), note)
+        return ("park", clean_name(name), note, False)
     if m := RESUME.match(text) or VIEW.match(text):
         name = clean_name(m["name"])
         if LIST.match(re.sub(r"^(?:showing|show|all)\s+", "show ", name)):
@@ -152,14 +166,19 @@ def parse_draft(text):
     """Commands while a draft park is open; anything unrecognised is the note.
     -> ('drop'|'keep', what) | ('save', name or '') | ('cancel',) | ('note', text) | any parse() command"""
     said = LEAD_IN.sub("", text.strip()).rstrip(".!?")
+    if UNDO.match(said):
+        return ("undo",)
     if m := DROP.match(said):
         return ("drop", m["what"])
     if m := KEEP.match(said):
         return ("keep", m["what"])
-    if m := SAVE.match(said):
-        return ("save", saved_name(m["name"]))
-    if DONE.match(said):
-        return ("save", "")
+    short, clear = split_clear(said)
+    if clear and not short:
+        return ("save", "", True)  # just "clear"
+    if m := SAVE.match(short):
+        return ("save", saved_name(m["name"]), clear)
+    if DONE.match(short):
+        return ("save", "", clear)
     if CANCEL.match(said):
         return ("cancel",)
     if m := NOTE.match(text.strip()):

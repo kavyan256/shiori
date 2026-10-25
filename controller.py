@@ -17,6 +17,9 @@ import browser
 import cues
 import restore
 import store
+import clear
+import naming
+import office
 from capture import list_windows
 from commands import YES, app_name, parse, parse_draft, pick_windows
 from items import current_items, kind, tab_items
@@ -24,6 +27,7 @@ from notes import split_note
 from presets import preselect, profile, signatures
 
 DRAFT_EXPIRES = 2 * 3600  # an untouched draft older than this is thrown away
+UNDO_FOR = 60             # seconds an action can still be undone
 
 
 class Controller:
@@ -32,6 +36,7 @@ class Controller:
         self.asking_name = False    # waiting for "what should I call it?"
         self.confirm_delete = None  # park name waiting for "yes"
         self.viewing = None         # the park on screen, for "pin this"
+        self.last_action = None     # what "undo" would take back: {"kind", "name", "at", ...}
 
     def opened(self):
         """The bar just opened: carry on with a draft if there is one, else show your parks."""
@@ -47,12 +52,15 @@ class Controller:
         if self.confirm_delete:
             name, self.confirm_delete = self.confirm_delete, None
             if YES.match(text):
-                store.delete(name)
-                return self.home(f"Deleted “{name}”. It's in data/trash if you need it back.")
+                trashed = store.delete(name)
+                self.remember("delete", name, trashed=str(trashed))
+                return self.with_undo(self.home(f"Deleted “{name}”."))
             return self.home(f"Kept “{name}”.")
         if self.asking_name:
             self.asking_name = False
-            return self.save(text) if text else self.ask_name()
+            if text or self.draft:
+                return self.save(text)  # nothing said: save() falls back to the suggested name
+            return self.ask_name()
         if not text:
             return self.draft_view() if self.draft else self.home()
 
@@ -62,7 +70,7 @@ class Controller:
             if command[0] in ("drop", "keep"):
                 return self.choose(command[1], keep=command[0] == "keep")
             if command[0] == "save":
-                return self.save(command[1])
+                return self.save(command[1], clear_after=command[2])
             if command[0] == "cancel":
                 self.draft = None
                 return self.home("Park cancelled. Nothing was saved.")
@@ -75,7 +83,7 @@ class Controller:
         else:
             command = parse(text)
             if command[0] == "park":
-                return self.start_draft(command[1], command[2])
+                return self.start_draft(command[1], command[2], clear_after=command[3])
             if command[0] == "delete":
                 return self.ask_delete(command[1])
             if command[0] == "pin":
@@ -83,6 +91,8 @@ class Controller:
             if command[0] == "unpin":
                 return self.unpin(command[1])
 
+        if command[0] == "undo":
+            return self.undo()
         if command[0] == "list":
             return self.home()
         if command[0] == "resume":
@@ -94,9 +104,10 @@ class Controller:
         return self.help()
 
     # --- building a park ------------------------------------------------------------
-    def start_draft(self, name="", note=""):
+    def start_draft(self, name="", note="", clear_after=False):
         browser.request_reports()  # exact tabs right now, not the last report
-        self.draft = {"items": current_items(), "note": "", "steps": [], "name": name, "at": time.time()}
+        self.draft = {"items": current_items(), "note": "", "steps": [], "name": name, "at": time.time(),
+                      "clear": clear_after}
         # git cues for every repo on screen, worked out once; the view shows only the ticked ones
         all_folders = cues.folders_of([{**i, "keep": True} for i in self.draft["items"]])
         self.draft["cues"] = cues.for_folders(all_folders)
@@ -177,11 +188,16 @@ class Controller:
 
     def ask_name(self):
         self.asking_name = True
-        return {"view": "ask", "prompt": "What should this park be called?"}
+        return {"view": "ask", "prompt": "What should this park be called?",
+                "suggested": self.suggested_name() if self.draft else ""}
 
-    def save(self, name):
-        name = name or self.draft["name"]
-        if not name or not store.slug(name):
+    def suggested_name(self):
+        return naming.suggest(self.draft["items"], ticked_cues(self.draft))
+
+    def save(self, name, clear_after=False):
+        """Save the draft under a name: the one said, the one from "park dsa", else the suggestion."""
+        name = name or self.draft["name"] or self.suggested_name()
+        if not store.slug(name):
             return self.ask_name()
         existing = store.load(name)  # exact name only: never fold "acads" into "coding"
         name = existing["name"] if existing else name
@@ -190,11 +206,52 @@ class Controller:
         kept = sum(1 for i in draft["items"] if i["keep"])
         versions = len(store.load(name)["snapshots"])
         extra = f" · version {versions}" if versions > 1 else ""
-        return self.view(name, f"Saved ✓  {kept} of {len(draft['items'])} items{extra}")
+        view = self.view(name, f"Saved ✓  {kept} of {len(draft['items'])} items{extra}")
+        if clear_after or draft.get("clear"):
+            closed, left = clear.close_items(draft["items"])
+            view.update(cleared=closed, left_open=left)
+            self.remember("clear", name)
+            return self.with_undo(view)
+        return view
+
+    # --- undo -----------------------------------------------------------------------------
+    def remember(self, kind_of_action, name, **details):
+        self.last_action = {"kind": kind_of_action, "name": name, "at": time.time(), **details}
+
+    def undo_seconds(self):
+        if not self.last_action:
+            return 0
+        return max(0, int(UNDO_FOR - (time.time() - self.last_action["at"])))
+
+    def with_undo(self, view):
+        """Show an Undo button (with its time left) on the view right after an action."""
+        view["undo"] = self.undo_seconds()
+        return view
+
+    def undo(self):
+        """Take back the last resume, clear or delete, within a minute."""
+        action, self.last_action = self.last_action, None
+        if not action or time.time() - action["at"] > UNDO_FOR:
+            return {"view": "message", "title": "Nothing to undo",
+                    "lines": ["Undo works for a minute after a resume, a park-and-clear, or a delete."]}
+        name = action["name"]
+        if action["kind"] == "resume":
+            closed = clear.undo_resume(set(action["before"]), set(action["apps"]), name, action["files"])
+            return self.home(f"Undone: closed {closed} window{'s' if closed != 1 else ''} and the “{name}” tabs.")
+        if action["kind"] == "clear":
+            view = self.resume(name)
+            view["verb"] = "Reopened"
+            return view
+        if action["kind"] == "delete":
+            if store.undelete(action["trashed"], name):
+                return self.view(name, "Back from the trash.")
+            return {"view": "message", "title": "Couldn't undo", "lines": [f"A park called “{name}” exists again."]}
+        return self.help()
 
     def draft_view(self, message=""):
         d = self.draft
         return {"view": "draft", "name": d["name"], "note": d["note"], "steps": d["steps"],
+                "suggested": "" if d["name"] else self.suggested_name(), "clear": d.get("clear", False),
                 "groups": groups(d["items"]), "message": message, "cues": cue_rows(ticked_cues(d)),
                 "no_tabs": sorted({app_name(i) for i in d["items"]
                                    if i["app"] in ("chrome.exe", "msedge.exe") and kind(i) == "window"})}
@@ -235,10 +292,24 @@ class Controller:
         if not name:
             return self.not_found(spoken)
         snap = store.latest(name)
+        self.remember_resume(name, snap["windows"])
         opened, skipped = restore.reopen(snap, name)
-        return {"view": "resume", "verb": "Resumed", "name": name, "ago": store.ago(snap["parked_at"]),
+        return self.with_undo({"view": "resume", "verb": "Resumed", "name": name, "ago": store.ago(snap["parked_at"]),
                 "note": snap["brain_dump"], "steps": snap["next_steps"], "opened": opened, "skipped": skipped,
-                "cues": cue_rows(cues.compare(snap.get("cues", [])))}
+                "cues": cue_rows(cues.compare(snap.get("cues", [])))})
+
+    def remember_resume(self, name, items):
+        """Before reopening: note which windows and Office files are already open, so undo
+        closes only what this resume added."""
+        open_files = {f["path"].lower() for f in office.current()}
+        files = [i["path"] for i in items if i.get("keep", True) and kind(i) == "file"
+                 and i["app"] in office.APPS and i["path"].lower() not in open_files]
+        kept = [i for i in items if i.get("keep", True)]
+        # apps whose new windows undo may close; browsers aren't here: their tabs close as a group
+        apps = {i["app"] for i in kept if kind(i) != "tab" and i["app"] not in browser.BROWSER_OF_APP}
+        if any(kind(i) == "terminal" for i in kept):
+            apps.add("windowsterminal.exe")
+        self.remember("resume", name, before=[w.hwnd for w in list_windows()], files=files, apps=sorted(apps))
 
     # --- presets ------------------------------------------------------------------------
     def pin(self, spoken):
@@ -270,10 +341,11 @@ class Controller:
                                f"Say “pin {name}” to make it a preset."] + view["skipped"]
             return view
         last = stage["snapshots"][-1]
+        self.remember_resume(name, stage["pinned"])
         opened, skipped = restore.reopen({"windows": stage["pinned"]}, name)
-        return {"view": "resume", "verb": "Started", "name": name, "ago": store.ago(last["parked_at"]),
+        return self.with_undo({"view": "resume", "verb": "Started", "name": name, "ago": store.ago(last["parked_at"]),
                 "note": last["brain_dump"], "steps": last["next_steps"], "opened": opened, "skipped": skipped,
-                "cues": cue_rows(cues.compare(last.get("cues", [])))}
+                "cues": cue_rows(cues.compare(last.get("cues", [])))})
 
     def ask_delete(self, spoken):
         name = store.find(spoken)

@@ -92,6 +92,16 @@ def request_reports(timeout=1.5):
         _new_report.wait_for(lambda: all(_tabs.get(b, {}).get("count", 0) > before[b] for b in asked), timeout)
 
 
+def close_tabs(browser, urls):
+    """Ask a connected browser to close these tabs (park and clear). False if not connected."""
+    return _send(browser, {"type": "close", "urls": urls})
+
+
+def close_group(browser, name):
+    """Ask a connected browser to close the tab group a resume opened (undo)."""
+    return _send(browser, {"type": "close_group", "name": name})
+
+
 def has_extension(browser):
     with _lock:
         return browser in _tabs or browser in _sockets

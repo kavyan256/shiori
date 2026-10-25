@@ -37,6 +37,8 @@ function connect() {
     const message = JSON.parse(event.data);
     if (message.type === "report") report();
     if (message.type === "restore") openGroup(message);
+    if (message.type === "close") closeTabs(message.urls);        // park and clear
+    if (message.type === "close_group") closeGroup(message.name); // undo a resume
   };
   socket.onclose = () => {
     clearInterval(keepAwake);
@@ -137,6 +139,30 @@ async function openGroup(park, windowId) {
   await chrome.tabGroups.update(groupId, { title: park.name, color: COLORS[park.color % COLORS.length] });
   await chrome.tabs.update(tabIds[0], { active: true });
   await chrome.windows.update(windowId, { focused: true });
+}
+
+// ---- closing (park and clear, undo) ------------------------------------------------------
+function withoutTime(url) {  // a YouTube link minus its start time, so the same video matches
+  try { const u = new URL(url); u.searchParams.delete("t"); return u.toString(); } catch (e) { return url; }
+}
+
+async function closeTabs(urls) {
+  const wanted = new Map();
+  for (const u of urls) wanted.set(withoutTime(u), (wanted.get(withoutTime(u)) || 0) + 1);
+  const ids = [];
+  for (const tab of await chrome.tabs.query({})) {
+    const key = withoutTime(tab.url || "");
+    if (wanted.get(key) > 0) { wanted.set(key, wanted.get(key) - 1); ids.push(tab.id); }  // each saved tab once
+  }
+  if (ids.length) await chrome.tabs.remove(ids);
+  debug(`closed ${ids.length} tab(s)`);
+}
+
+async function closeGroup(name) {
+  for (const group of await chrome.tabGroups.query({ title: name })) {
+    const tabs = await chrome.tabs.query({ groupId: group.id });
+    if (tabs.length) await chrome.tabs.remove(tabs.map(t => t.id));
+  }
 }
 
 // Browser was closed: Stage opened its restore page. Fetch the tabs and replace that page.

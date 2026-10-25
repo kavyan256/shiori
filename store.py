@@ -74,10 +74,21 @@ def set_pins(name, items):
 
 
 def delete(name):
-    """Move the park to data/trash/ (with a timestamp, so trashing twice never overwrites)."""
+    """Move the park to data/trash/ (with a timestamp, so trashing twice never overwrites).
+    Returns where it went, so it can be put back."""
     path = path_of(name)
     TRASH_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(path), TRASH_DIR / f"{path.stem}-{datetime.now():%Y%m%d-%H%M%S}.json")
+    trashed = TRASH_DIR / f"{path.stem}-{datetime.now():%Y%m%d-%H%M%S}.json"
+    shutil.move(str(path), trashed)
+    return trashed
+
+
+def undelete(trashed, name):
+    """Put a trashed park back (undo). False if a park with that name exists again."""
+    if path_of(name).exists() or not Path(trashed).exists():
+        return False
+    shutil.move(str(trashed), path_of(name))
+    return True
 
 
 FILLER_WORDS = {"the", "my", "a", "stage", "park", "parks", "part", "parts", "project", "work", "thing", "stuff"}
