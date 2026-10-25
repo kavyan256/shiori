@@ -19,6 +19,7 @@ import time
 import traceback
 from pathlib import Path
 
+import psutil
 import pystray
 import pywintypes
 import webview
@@ -83,6 +84,14 @@ class Api:
     def hide(self):
         window.hide()
 
+    def tick_step(self, name, index):
+        return self._safe(controller.toggle_step, name, index)
+
+    def blurred(self):
+        """You clicked somewhere else: get out of the way. Not if focus is coming
+        straight back (our own retries) or went to Wispr Flow while you speak."""
+        threading.Thread(target=hide_if_left, daemon=True).start()
+
 
 # --- Showing the bar ---------------------------------------------------------------
 def bar_hwnd():
@@ -143,6 +152,21 @@ def show_bar():
     retries = bring_to_front()
     focused = window.evaluate_js("Stage.open()")
     log.info("bar shown: front after %s retries, input focused: %s", retries, focused)
+
+
+def hide_if_left():
+    time.sleep(0.3)
+    front = win32gui.GetForegroundWindow()
+    if not bar_visible() or front == bar_hwnd():
+        return
+    try:
+        front_app = psutil.Process(win32process.GetWindowThreadProcessId(front)[1]).name().lower()
+    except psutil.Error:
+        front_app = ""
+    if "wispr" in front_app or "flow" in front_app:
+        return  # Wispr's own window while you hold Ctrl+Win: it pastes back into the bar
+    log.info("hidden: you clicked into %s", front_app or "another window")
+    window.hide()
 
 
 def toggle_bar():

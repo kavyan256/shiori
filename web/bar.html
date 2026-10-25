@@ -87,7 +87,28 @@
   .note p:last-child { margin: 0; }
   .note .empty { color: var(--muted); font-size: 13px; font-style: italic; }
   .step { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
-  .box { width: 14px; height: 14px; border: 1.5px solid var(--muted); border-radius: 4px; flex: none; }
+  .box { width: 14px; height: 14px; border: 1.5px solid var(--muted); border-radius: 4px; flex: none; position: relative;
+         transition: background var(--fast), border-color var(--fast); }
+  .step .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); flex: none; margin: 0 4px; }
+  /* next steps you can tick off: click, or say "tick 1" */
+  .step.tickable { cursor: pointer; border-radius: 6px; padding: 1px 4px; margin-left: -4px; transition: color var(--base); }
+  .step.tickable:hover { background: var(--accent-soft); }
+  .step.tickable .num { color: var(--muted); font-size: 12px; width: 12px; }
+  .step.tickable.done { color: var(--muted); }
+  .step.tickable.done .text { text-decoration: line-through; }
+  .step.tickable.done .box { background: var(--ok); border-color: var(--ok); animation: pop var(--base) var(--spring); }
+  .step.tickable.done .box::after { content: ""; position: absolute; left: 3.5px; top: 0.5px; width: 3.5px; height: 7.5px;
+                                border: solid var(--bg); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  /* the note before you've said one: the one place Stage asks for your voice */
+  .note.voice { display: flex; gap: 12px; align-items: center; border: 1.5px dashed var(--accent);
+                background: var(--accent-soft); padding: 12px 14px; }
+  .note.voice .mic { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); display: grid;
+                     place-items: center; flex: none; animation: breathe 2.4s var(--ease) infinite; }
+  .note.voice .mic svg { width: 16px; height: 16px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; }
+  .note.voice .vtitle { font-size: 15px; font-weight: 600; }
+  .note.voice .vhow { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .nlabel { font-size: 11px; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 4px; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
 
   /* rows */
   .scroll { max-height: 300px; overflow-y: auto; margin-right: -6px; padding-right: 6px; }
@@ -297,10 +318,21 @@ function updateChip() {
 }
 
 // ---- pieces shared by views ---------------------------------------------------------
-function noteBlock(note, steps, emptyText = "No note", gitCues = []) {
+const MIC = '<svg viewBox="0 0 16 16"><rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg>';
+// opts.voice: the draft, where the note is still to be said. opts.tickable: a saved park, where steps tick off.
+function noteBlock(note, steps, emptyText = "No note", gitCues = [], opts = {}) {
+  steps = steps || [];
+  if (opts.voice && !note && !steps.length) return `<div class="note voice"><span class="mic">${MIC}</span><div>
+      <div class="vtitle">What were you doing, and what's next?</div>
+      <div class="vhow">Hold <kbd>Ctrl</kbd><kbd>Win</kbd> and say it, or type it above</div></div></div>${cueBlock(gitCues)}`;
+  const done = new Set(opts.done || []);
+  const label = opts.voice ? `<div class="nlabel">Your note · say a new one to replace it</div>` : "";
   const lines = note ? `<p>${esc(note)}</p>` : `<p class="empty">${esc(emptyText)}</p>`;
-  const list = (steps || []).map(s => `<div class="step"><span class="box"></span>${esc(s)}</div>`).join("");
-  return `<div class="note">${lines}${list}</div>${cueBlock(gitCues)}`;
+  const list = steps.map((s, i) => opts.tickable
+    ? `<div class="step tickable ${done.has(i) ? "done" : ""}" data-step="${i}" title="Click, or say “tick ${i + 1}”">
+         <span class="box"></span><span class="num">${i + 1}</span><span class="text">${esc(s)}</span></div>`
+    : `<div class="step"><span class="dot"></span>${esc(s)}</div>`).join("");
+  return `<div class="note">${label}${lines}${list}</div>${cueBlock(gitCues)}`;
 }
 
 // One line per git repo: branch · changes · last commit, and a warning if you've switched branch since
@@ -392,13 +424,14 @@ const views = {
     const kept = s.groups.reduce((n, g) => n + g.items.filter(i => i.keep).length, 0);
     const name = s.name || s.suggested;  // "save" alone uses the suggestion
     return `<section><h2>New park <span class="sub">→ ${esc(name)}${s.name ? "" : " (suggested)"}</span><span class="tag">not saved</span></h2>
-      ${noteBlock(s.note, s.steps, "No note yet. Say what you were doing and what's next.", s.cues)}
+      ${noteBlock(s.note, s.steps, "", s.cues, { voice: true })}
       <div class="scroll stagger-rows">${groupsBlock(s.groups, true)}</div>
       ${s.no_tabs.length ? `<div class="warn">${esc(s.no_tabs.join(" and "))} shows only the tab in front. Add the Stage extension to pick tabs.</div>` : ""}
       ${s.message ? `<div class="msg">${esc(s.message)}</div>` : ""}
       <div class="actions">
-        <button class="primary" data-say="${s.clear ? "save and clear" : "save"}">${s.clear ? "Save and clear" : "Save"} as ${esc(name)} · ${kept} of ${total}</button>
-        ${s.clear ? `<button data-say="save">Save, keep open</button>` : `<button data-say="save and clear" title="Save, then close what you saved">Save and clear</button>`}
+        ${kept ? `<button class="primary" data-say="${s.clear ? "save and clear" : "save"}">${s.clear ? "Save and clear" : "Save"} as ${esc(name)} · ${kept} of ${total}</button>`
+               : `<button class="primary" disabled>Nothing ticked · tick something to save</button>`}
+        ${s.clear ? `<button data-say="save" ${kept ? "" : "disabled"}>Save, keep open</button>` : `<button data-say="save and clear" title="Save, then close what you saved" ${kept ? "" : "disabled"}>Save and clear</button>`}
         <button data-say="cancel">Cancel</button></div>
       <div class="foot">“drop 3” · say your note · “save” · “save as coding” · “save and clear” · ↑↓ Space to tick</div></section>`;
   },
@@ -430,7 +463,7 @@ const views = {
     const cleared = s.cleared ? `<div class="msg">${s.cleared.length ? `Cleared ${esc(s.cleared.join(", "))}` : "Nothing needed closing"}</div>
       ${s.left_open?.length ? `<details><summary>${plural(s.left_open.length, "thing")} left open</summary>${
         s.left_open.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : ""}` : "";
-    return `<section>${title}${message}${noteBlock(s.note, s.steps, "No note", s.cues)}${items}${cleared}${pinned}${versions}
+    return `<section>${title}${message}${noteBlock(s.note, s.steps, "No note", s.cues, { tickable: true, done: s.done })}${items}${cleared}${pinned}${versions}
       <div class="actions">${undoButton(s)}${buttons}<button data-say="list">All parks</button>
       <button class="danger" data-say="delete ${esc(s.name)}">Delete</button></div></section>`;
   },
@@ -442,7 +475,7 @@ const views = {
       s.skipped.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : "";
     const verb = { Started: "Started", Reopened: "Reopened" }[s.verb] || "Resuming";
     return `<section><h2>${verb} ${esc(s.name)} <span class="sub">${started ? "last parked" : "parked"} ${esc(s.ago)}</span></h2>
-      ${noteBlock(s.note, s.steps, "No note", s.cues)}
+      ${noteBlock(s.note, s.steps, "No note", s.cues, { tickable: true, done: s.done })}
       <div class="label">${s.opened.length ? "Opening" : "Nothing to open"}</div>
       <div class="pills stagger">${pills || `<span class="meta">It's all already here.</span>`}</div>${skipped}
       ${s.undo ? `<div class="actions">${undoButton(s)}</div>` : ""}</section>`;
@@ -482,6 +515,7 @@ function render(s, { fresh = false } = {}) {
   $("ask").textContent = s.view === "ask" ? s.prompt : "";
   q.placeholder = s.view === "ask" && s.suggested ? `${s.suggested} (Enter to use)` : PLACEHOLDER[s.view] || PLACEHOLDER.home;
   view.innerHTML = views[s.view](s);
+  if (s.view === "resume") holdUntil = Date.now() + 5000;
 
   const section = view.querySelector("section");
   if (section && changedView) section.classList.add("enter");
@@ -619,12 +653,33 @@ view.addEventListener("click", async e => {
     setTimeout(fit, 200);  // after the fold animation
     return q.focus();
   }
+  const step = e.target.closest("[data-step]");
+  if (step) {
+    const done = await call("tick_step", state.name, +step.dataset.step);
+    if (Array.isArray(done)) {
+      state.done = done;
+      view.querySelectorAll("[data-step]").forEach(el => el.classList.toggle("done", done.includes(+el.dataset.step)));
+    }
+    return q.focus();
+  }
   const target = e.target.closest("[data-toggle], [data-say]");
   if (!target) return;
   if (target.dataset.toggle !== undefined) await toggleRow(+target.dataset.toggle);
   else submit(target.dataset.say);
   q.focus();
 });
+
+// ---- click somewhere else and the bar gets out of the way -----------------------------------
+// Not while a pasted command is counting down or running, and not in the first seconds after
+// a resume: the windows it opens take focus, and you should still get to read your note.
+// Those only delay it: once they're over, if you're still elsewhere, the bar goes.
+let holdUntil = 0;
+function hideIfLeft() {
+  if (document.hasFocus()) return;
+  if (autoRun || busy || Date.now() < holdUntil) return setTimeout(hideIfLeft, 300);
+  pywebview.api.blurred();
+}
+window.addEventListener("blur", () => setTimeout(hideIfLeft, 0));
 
 // ---- called from Python ------------------------------------------------------------------
 window.Stage = {

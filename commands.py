@@ -41,6 +41,9 @@ UNPIN = re.compile(r"^unpin\s+(?:the\s+)?(?:park\s+)?(?P<name>.+)$", re.I)
 START = re.compile(r"^(?:start|launch|set ?up|fire up|open (?:the )?preset)\s+(?:my\s+|the\s+)?(?P<name>.+?)"
                    r"(?:\s+(?:preset|park|setup|stage))?$", re.I)
 HIDE_GUIDE = re.compile(r"^(?:hide|skip|close|dismiss)(?: the)? (?:guide|tips|getting started|tutorial)$|^got it$", re.I)
+# Ticking off a next step while a park is on screen: "tick 1", "done with step 2", "untick 1"
+TICK_STEP = re.compile(r"^(?P<un>un)?(?:tick|check)(?: off)?(?: step| number)?\s+(?P<n>\w+)$"
+                       r"|^(?:done|finished)(?: with)? (?:step|number) (?P<n2>\w+)$", re.I)
 UNDO = re.compile(r"^(?:undo|undo (?:that|it|this)|take (?:that|it) back)$", re.I)
 # "…and clear": close what was parked afterwards. Only looked for at the end of a park/save command.
 AND_CLEAR = re.compile(r"(?:^|[\s,.]+)(?:and\s+)?(?:clear|close)(?:\s+(?:it all|everything|them|up|the desk|my desk))?$", re.I)
@@ -157,6 +160,11 @@ def parse(text):
         return ("hide_guide",)
     if LIST.match(text):
         return ("list",)
+    if m := TICK_STEP.match(text):
+        said = (m["n"] or m["n2"]).lower()
+        number = NUMBER_WORDS.get(said, said)  # "tick two" -> 2
+        if number.isdigit():
+            return ("step", int(number) - 1, not m["un"])
     if RESUME_LAST.match(text):
         return ("resume", "")  # the newest park
     short, clear = split_clear(text)

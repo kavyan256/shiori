@@ -160,6 +160,20 @@ def _read(path):
         return None
 
 
+def set_step(name, index, done):
+    """Tick (or untick) one next step of the newest version. Returns the ticked step numbers (0-based)."""
+    stage = load(name)
+    snap = stage["snapshots"][-1]
+    ticked = set(snap.get("done", []))
+    if done:
+        ticked.add(index)
+    else:
+        ticked.discard(index)
+    snap["done"] = sorted(i for i in ticked if 0 <= i < len(snap["next_steps"]))
+    save(stage)
+    return snap["done"]
+
+
 def list_stages():
     """Every park with its versions, most recently parked first."""
     if not DATA_DIR.exists():

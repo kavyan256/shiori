@@ -10,6 +10,7 @@ from collections import Counter
 from datetime import datetime
 from urllib.parse import urlsplit
 
+import store
 from items import kind
 
 HOME = os.path.expanduser("~").lower()
@@ -63,4 +64,21 @@ def suggest(items, found_cues=()):
     if votes:
         name, _ = votes.most_common(1)[0]
         return name[:32]
-    return datetime.now().strftime("%a %H%M").lower()  # nothing to go on: "sun 1840"
+    return readable_time_name()
+
+
+def readable_time_name(now=None):
+    """Nothing to go on: "Sunday evening", or "Sunday evening 6:40 pm" if that name is taken."""
+    now = now or datetime.now()
+    if 5 <= now.hour < 12:
+        part = "morning"
+    elif 12 <= now.hour < 17:
+        part = "afternoon"
+    elif 17 <= now.hour < 21:
+        part = "evening"
+    else:
+        part = "night"
+    name = f"{now:%A} {part}"
+    if store.load(name):
+        name += " " + now.strftime("%I:%M %p").lstrip("0").lower()
+    return name

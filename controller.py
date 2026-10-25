@@ -110,6 +110,8 @@ class Controller:
             return self.resume(command[1])
         if command[0] == "start":
             return self.start(command[1])
+        if command[0] == "step":
+            return self.tick_step(command[1], command[2])
         if command[0] == "view":
             return self.view(command[1])
         return self.help()
@@ -225,6 +227,8 @@ class Controller:
 
     def save(self, name, clear_after=False, checked=False):
         """Save the draft under a name: the one said, the one from "park dsa", else the suggestion."""
+        if not any(i["keep"] for i in self.draft["items"]):
+            return self.draft_view("Nothing is ticked, so there's nothing to save. Tick what belongs, or say “cancel”.")
         name = name or self.draft["name"] or self.suggested_name()
         if not store.slug(name):
             return self.ask_name()
@@ -294,9 +298,10 @@ class Controller:
         for s in store.list_stages():
             last = s["snapshots"][-1]
             kept = [i for i in last["windows"] if i.get("keep", True)]
+            todo = [step for n, step in enumerate(last["next_steps"]) if n not in last.get("done", [])]
             parks.append({
                 "name": s["name"], "ago": store.ago(last["parked_at"]),
-                "next": last["next_steps"][0] if last["next_steps"] else "",
+                "next": todo[0] if todo else "",
                 "items": len(kept), "versions": len(s["snapshots"]), "preset": bool(s.get("pinned")),
             })
         return {"view": "home", "parks": parks, "draft": bool(self.draft), "message": message,
@@ -311,7 +316,7 @@ class Controller:
         last = stage["snapshots"][-1]
         return {
             "view": "park", "name": name, "ago": store.ago(last["parked_at"]),
-            "note": last["brain_dump"], "steps": last["next_steps"],
+            "note": last["brain_dump"], "steps": last["next_steps"], "done": last.get("done", []),
             "groups": groups([i for i in last["windows"] if i.get("keep", True)], numbered=False),
             "versions": [{"ago": store.ago(s["parked_at"]), "note": s["brain_dump"]}
                          for s in reversed(stage["snapshots"][:-1])][:5],
@@ -330,11 +335,30 @@ class Controller:
         if not name:
             return self.not_found(spoken)
         snap = store.latest(name)
+        self.viewing = name  # so "tick 1" works on the note you're reading
         self.remember_resume(name, snap["windows"])
         opened, skipped = restore.reopen(snap, name)
         return self.with_undo({"view": "resume", "verb": "Resumed", "name": name, "ago": store.ago(snap["parked_at"]),
-                "note": snap["brain_dump"], "steps": snap["next_steps"], "opened": opened, "skipped": skipped,
+                "note": snap["brain_dump"], "steps": snap["next_steps"], "done": snap.get("done", []),
+                "opened": opened, "skipped": skipped,
                 "cues": cue_rows(cues.compare(snap.get("cues", [])))})
+
+    # --- next steps: tick them off as you get through them -------------------------------
+    def tick_step(self, index, done):
+        """Voice: "tick 1" / "untick 1" on the park on screen."""
+        name = self.viewing
+        if not name or not store.load(name):
+            return self.home("Open a park first (“view coding”), then “tick 1”.")
+        steps = store.latest(name)["next_steps"]
+        if not 0 <= index < len(steps):
+            return self.view(name, f"There's no step {index + 1}." if steps else "This park has no next steps.")
+        store.set_step(name, index, done)
+        return self.view(name, f"{'Ticked' if done else 'Unticked'} “{steps[index]}”.")
+
+    def toggle_step(self, name, index):
+        """Click on a step: flip it. Returns the ticked step numbers, so the page updates in place."""
+        done = set(store.latest(name).get("done", []))
+        return store.set_step(name, index, index not in done)
 
     def remember_resume(self, name, items):
         """Before reopening: note which windows and Office files are already open, so undo
