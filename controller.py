@@ -290,17 +290,29 @@ class Controller:
 
 
 def groups(items, numbered=True):
-    """Items grouped for display: apps first, then each browser window's tabs.
+    """Items grouped for display: apps, files, terminals, then each browser window's tabs.
     Every row keeps its position in the full list (i), which is what 'drop 3' and clicks use."""
-    out = {}
+    labels = {"window": "Apps", "file": "Files", "terminal": "Terminals"}
+    out = {label: [] for label in labels.values()}  # fixed order, empty ones dropped below
     for i, item in enumerate(items):
-        if kind(item) == "tab":
-            label = f"{item['browser'].title()} · window {item['window']}"
-        else:
-            label = "Apps"
+        k = kind(item)
+        label = f"{item['browser'].title()} · window {item['window']}" if k == "tab" else labels[k]
         out.setdefault(label, []).append({
             "i": i, "n": i + 1 if numbered else None, "app": app_name(item), "title": item["title"],
-            "keep": item.get("keep", True), "tab": kind(item) == "tab",
+            "keep": item.get("keep", True), "tab": k == "tab", "kind": k,
             "host": item.get("url", "").split("/")[2] if item.get("url", "").count("/") >= 2 else "",
+            "meta": row_meta(item),
         })
-    return [{"label": label, "items": rows} for label, rows in out.items()]
+    return [{"label": label, "items": rows} for label, rows in out.items() if rows]
+
+
+def row_meta(item):
+    """The small grey text at the end of a row."""
+    if kind(item) == "terminal":
+        if not item["command"]:
+            return ""
+        return "reruns on resume" if item.get("rerun") else "folder only (not re-run)"
+    if kind(item) == "file":
+        parts = [item.get("where_text", "")] + (["unsaved changes"] if item.get("unsaved") else [])
+        return " · ".join(p for p in parts if p)
+    return ""

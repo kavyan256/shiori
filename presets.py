@@ -22,6 +22,10 @@ def signatures(item):
     if kind(item) == "tab":
         host = (urlparse(item.get("url", "")).hostname or "").removeprefix("www.")
         return {("site", host)} if host else set()
+    if kind(item) == "terminal":
+        return {("terminal", item["folder"].lower())}
+    if kind(item) == "file":
+        return {("file", item["path"].lower())}
     if item.get("targets"):
         return {("folder", item["app"], t.lower()) for t in item["targets"]}
     return {("app", item["app"])}

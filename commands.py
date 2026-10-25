@@ -49,7 +49,8 @@ NUMBER_WORDS = {w: str(n) for n, w in enumerate(
     "zero one two three four five six seven eight nine ten eleven twelve".split())}
 NOT_A_MATCH = {"the", "and", "window", "windows", "tab", "tabs", "number", "app", "one", "all"}
 FRIENDLY = {"code": "VS Code", "windowsterminal": "Terminal", "explorer": "Explorer",
-            "chrome": "Chrome", "msedge": "Edge", "claude": "Claude"}
+            "chrome": "Chrome", "msedge": "Edge", "claude": "Claude",
+            "excel": "Excel", "winword": "Word", "powerpnt": "PowerPoint"}
 
 
 def app_name(w):
@@ -63,7 +64,8 @@ def window_label(w):
 
 def searchable(w):
     """Everything a spoken word can match: app, title, label, and a tab's web address."""
-    return " ".join([w["app"], w["title"], window_label(w), w.get("url", "")]).lower()
+    extra = [w.get(k, "") for k in ("url", "folder", "command", "path")]
+    return " ".join([w["app"], w["title"], window_label(w), *extra]).lower()
 
 
 def pick_windows(what, windows):

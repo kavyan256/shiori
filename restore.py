@@ -10,11 +10,13 @@ import sys
 
 import psutil
 
-import browser
 import win32con
 import win32gui
 
+import browser
+import office
 import store
+import terminals
 from capture import app_id_of, list_windows
 from commands import app_name
 from items import kind
@@ -22,16 +24,16 @@ from items import kind
 # Store apps all run inside this host, so its exe can't relaunch a specific app.
 # Python on its own opens nothing (and old parks may hold Stage's own popup).
 CANT_RELAUNCH = {"applicationframehost.exe", "unknown", "python.exe", "pythonw.exe"}
-# Terminals: a fresh window opens (what was running inside isn't saved yet)
+# Terminal windows saved as plain windows (old parks): a fresh window opens
 CONSOLES = {"cmd.exe", "powershell.exe", "pwsh.exe"}
 
 # What isn't restored yet, and why
 LATER = {
     "chrome.exe": "parked before the extension was installed, so its tabs weren't saved",
     "msedge.exe": "parked before the extension was installed, so its tabs weren't saved",
-    "winword.exe": "Office files aren't reopened yet",
-    "excel.exe": "Office files aren't reopened yet",
-    "powerpnt.exe": "Office files aren't reopened yet",
+    "winword.exe": "no saved file was open in it when you parked",
+    "excel.exe": "no saved file was open in it when you parked",
+    "powerpnt.exe": "no saved file was open in it when you parked",
 }
 
 
@@ -83,6 +85,7 @@ def plan(snapshot, name=""):
         windows_of.setdefault(win.app, []).append(win)
     code_cmd = shutil.which("code")
     tabs = {}  # browser -> URLs to reopen together as one tab group
+    wanted_terminals, wanted_files = [], []
     handled_apps = set()
 
     def already_open(label, wins):
@@ -99,6 +102,12 @@ def plan(snapshot, name=""):
             continue  # you dropped it when parking
         if kind(w) == "tab":
             tabs.setdefault(w["browser"], []).append(w["url"])
+            continue
+        if kind(w) == "terminal":
+            wanted_terminals.append(w)
+            continue
+        if kind(w) == "file":
+            wanted_files.append(w)
             continue
         app = w["app"]
         targets = w.get("targets", [])  # snapshots from before step 3 don't have it
@@ -135,6 +144,32 @@ def plan(snapshot, name=""):
 
         else:
             skipped.append(f"{app} {w['title'][:40]} (no folder found)")
+
+    # Terminals: skip ones already running in that folder (with that command, if it re-runs)
+    if wanted_terminals:
+        running = terminals.current()
+        new = []
+        for t in wanted_terminals:
+            same_place = [r for r in running if r["folder"].lower() == t["folder"].lower()]
+            if any(not t.get("rerun") or r["command"] == t["command"] for r in same_place):
+                skipped.append(f"Terminal {t['title']} (already open)")
+            else:
+                new.append(t)
+            if t["command"] and not t.get("rerun"):
+                skipped.append(f"“{t['command']}” wasn't re-run: only dev servers and watchers are")
+        if new:
+            actions.append((f"Terminal  {len(new)} tab{'s' if len(new) > 1 else ''}",
+                            lambda n=new: terminals.open_all(n)))
+
+    # Office files: skip ones already open, reopen the rest at the same sheet/cell or slide
+    if wanted_files:
+        open_paths = {f["path"].lower() for f in office.current()}
+        for f in wanted_files:
+            if f["path"].lower() in open_paths:
+                skipped.append(f"{f['title']} (already open)")
+            else:
+                place = f" · {f['where_text']}" if f.get("where_text") else ""
+                actions.append((f"{app_name(f)}  {f['title']}{place}", lambda f=f: office.reopen(f)))
 
     open_tabs = browser.fresh_tabs({w.app for w in open_now})
     for name_of_browser, urls in tabs.items():

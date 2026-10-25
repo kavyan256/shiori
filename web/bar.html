@@ -262,10 +262,12 @@ function noteBlock(note, steps, emptyText = "No note") {
 
 function row(it, clickable) {
   const icon = it.tab ? (it.host || it.app) : it.app;
+  const named = it.kind === "window" || it.kind === "file";  // apps and files say which app; tabs and terminals are grouped
+  const meta = it.meta || (it.tab && it.host ? it.host.replace(/^www\./, "") : "");
   return `<div class="row ${it.keep ? "" : "off"} ${clickable ? "" : "static"}" ${clickable ? `data-toggle="${it.i}" data-nav` : ""}>
     ${clickable ? `<span class="check">${CHECK}</span>` : ""}${it.n ? `<span class="num">${it.n}</span>` : ""}
-    ${avatar(icon)}<span class="title">${it.tab ? "" : `${esc(it.app)} — `}${esc(it.title)}</span>
-    ${it.tab && it.host ? `<span class="meta">${esc(it.host.replace(/^www\./, ""))}</span>` : ""}</div>`;
+    ${avatar(icon)}<span class="title">${named ? `${esc(it.app)} — ` : ""}${esc(it.title)}</span>
+    ${meta ? `<span class="meta">${esc(meta)}</span>` : ""}</div>`;
 }
 
 function groupsBlock(groups, clickable) {

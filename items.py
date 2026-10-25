@@ -1,14 +1,19 @@
-"""What a park holds: one list of items, app windows and browser tabs together.
+"""What a park holds: one list of items, app windows, browser tabs, terminals and files together.
 
   {"kind": "window", "app": "code.exe", "title": ..., "targets": [folder], "group": "FULL", "keep": True, ...}
   {"kind": "tab", "browser": "chrome", "window": 1, "title": ..., "url": ..., "keep": True}
+  {"kind": "terminal", "folder": ..., "command": "npm run dev", "rerun": True, ...}   (terminals.py)
+  {"kind": "file", "app": "excel.exe", "path": ..., "where": {...}, ...}             (office.py)
 
-When the extension is reporting, a browser's windows are replaced by its tabs,
-so you can keep or drop each tab on its own.
+The more specific kinds replace their app's plain window: a browser's tabs (when
+the extension reports), Windows Terminal's shells, and Office's open files. So you
+keep or drop each tab, terminal or file on its own.
 """
 from dataclasses import asdict
 
 import browser
+import office
+import terminals
 from capture import list_windows
 
 # Browser pages that can't (or shouldn't) be reopened
@@ -33,17 +38,25 @@ def usually_not_work(item):
 def current_items():
     windows = list_windows()
     tabs = browser.fresh_tabs({w.app for w in windows})
+    shells = terminals.current()
+    files = office.current()
+    apps_with_files = {f["app"] for f in files}
     items = []
     for w in windows:
         if w.group == "SKIP":
             continue
         if browser.BROWSER_OF_APP.get(w.app) in tabs:
             continue  # this browser's tabs are listed one by one below
+        if w.app == "windowsterminal.exe" and shells:
+            continue  # its shells are listed one by one below
+        if w.app in apps_with_files:
+            continue  # its open files are listed one by one below
         window = {k: v for k, v in asdict(w).items() if k != "hwnd"}
         items.append({"kind": "window", **window, "keep": True})
 
     for name, browser_windows in tabs.items():
         items += tab_items(name, browser_windows)
+    items += shells + files
     for item in items:
         item["keep"] = not usually_not_work(item)
     return items
