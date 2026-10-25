@@ -1,0 +1,319 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Stage</title>
+<style>
+  :root {
+    --bg: #15171c; --panel: #1f222a; --raised: #262a34; --line: #2e323d;
+    --text: #e9e9ee; --muted: #8b90a0; --accent: #7aa2f7; --ok: #9ece6a; --danger: #f7768e;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f7f7f9; --panel: #ffffff; --raised: #eef0f4; --line: #e1e3ea;
+            --text: #1d1f24; --muted: #6b7080; --accent: #3d6fe0; --ok: #3f8f2f; --danger: #c93a52; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); overflow: hidden;
+               font: 14px "Segoe UI Variable Text", "Segoe UI", sans-serif; user-select: none; }
+  .wrap { padding: 14px 16px 16px; }
+
+  header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .logo { width: 18px; height: 18px; border-radius: 6px; background: var(--accent); color: var(--bg);
+          font: 700 12px/18px "Segoe UI"; text-align: center; }
+  .brand { font-weight: 600; }
+  .hint { margin-left: auto; color: var(--muted); font-size: 12px; }
+  kbd { font: 11px "Segoe UI"; padding: 1px 5px; border-radius: 4px; background: var(--raised); border: 1px solid var(--line); }
+
+  .ask { color: var(--accent); font-size: 13px; margin: 0 0 6px; display: none; }
+  textarea { width: 100%; resize: none; border: 1px solid var(--line); outline: 0; border-radius: var(--radius);
+             padding: 11px 14px; background: var(--panel); color: var(--text); height: 48px; max-height: 110px;
+             font: 17px "Segoe UI Variable Display", "Segoe UI", sans-serif; transition: border-color .15s; }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  .status { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .status:not(:has(> :not(.hidden))) { display: none; }
+  .chip { padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 18%, transparent);
+          color: var(--accent); font-size: 12px; font-weight: 600; }
+  .busy { color: var(--muted); font-size: 12px; }
+  .hidden { display: none !important; }
+
+  section { margin-top: 10px; animation: in .14s ease-out; }
+  @keyframes in { from { opacity: 0; transform: translateY(-3px); } }
+  h2 { font: 600 16px "Segoe UI Variable Display", "Segoe UI"; margin: 2px 0 8px; display: flex; gap: 8px; align-items: baseline; }
+  h2 .sub { font: 400 12px "Segoe UI"; color: var(--muted); }
+  h2 .draft-tag { font: 600 11px "Segoe UI"; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 7px; }
+  .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin: 12px 0 5px; }
+
+  .note { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+  .note p { margin: 0 0 6px; font-size: 15px; line-height: 1.4; }
+  .note p:last-child { margin: 0; }
+  .note .empty { color: var(--muted); font-style: italic; font-size: 13px; }
+  .step { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+  .box { width: 14px; height: 14px; border: 1.5px solid var(--muted); border-radius: 4px; flex: none; }
+
+  .scroll { max-height: 290px; overflow-y: auto; margin-right: -6px; padding-right: 6px; }
+  .rows { display: flex; flex-direction: column; gap: 1px; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; cursor: pointer; }
+  .row:hover, .row.sel { background: var(--raised); }
+  .row.static { cursor: default; } .row.static:hover { background: none; }
+  .row .num { color: var(--muted); width: 18px; text-align: right; font-size: 12px; flex: none; }
+  .row .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .row.off .title, .row.off .avatar { opacity: .4; }
+  .row.off .title { text-decoration: line-through; }
+  .avatar { width: 20px; height: 20px; border-radius: 6px; flex: none; color: #fff;
+            font: 700 10px/20px "Segoe UI"; text-align: center; }
+  .check { width: 16px; height: 16px; border-radius: 5px; flex: none; border: 1.5px solid var(--muted);
+           display: grid; place-items: center; font-size: 11px; color: var(--bg); }
+  .row:not(.off) .check { background: var(--accent); border-color: var(--accent); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .badge { font: 600 11px "Segoe UI"; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
+           border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
+
+  .msg { margin-top: 8px; font-size: 12px; color: var(--ok); }
+  .warn { margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .foot { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .actions { display: flex; gap: 8px; margin-top: 12px; }
+  button { font: 600 13px "Segoe UI"; border: 1px solid var(--line); background: var(--raised); color: var(--text);
+           padding: 6px 14px; border-radius: 8px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  button.danger { color: var(--danger); }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { padding: 3px 9px; border-radius: 999px; background: var(--raised); font-size: 12px; }
+  details { margin-top: 8px; color: var(--muted); font-size: 12px; }
+  details summary { cursor: pointer; }
+  details div { margin: 4px 0 0 14px; }
+  .empty-state { color: var(--muted); padding: 6px 2px; line-height: 1.6; }
+  .version { color: var(--muted); font-size: 12px; margin-top: 3px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <header>
+    <div class="logo">S</div><div class="brand">Stage</div>
+    <div class="hint">Hold <kbd>Ctrl</kbd><kbd>Win</kbd> to speak · <kbd>Esc</kbd></div>
+  </header>
+  <div class="ask" id="ask"></div>
+  <textarea id="q" spellcheck="false"></textarea>
+  <div class="status"><span class="chip hidden" id="chip"></span><span class="busy hidden" id="busy"></span></div>
+  <div id="view"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const q = $("q"), view = $("view");
+let state = { view: "home", parks: [] }, selected = 0, autoRun = null, busy = false;
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const hue = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+const color = s => `hsl(${hue(s)} 55% 52%)`;
+const avatar = app => `<div class="avatar" style="background:${color(app)}">${esc(app[0] || "?").toUpperCase()}</div>`;
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+// ---- talking to Python -------------------------------------------------------
+async function call(name, ...args) {
+  setBusy(name === "submit" ? busyText(args[0]) : "");
+  try { return await pywebview.api[name](...args); }
+  finally { setBusy(""); }
+}
+function setBusy(text) {
+  busy = !!text;
+  $("busy").textContent = text;
+  $("busy").classList.toggle("hidden", !text);
+}
+function busyText(text) {
+  const verb = (text.match(/^\s*(\w+)/) || [])[1]?.toLowerCase();
+  return { park: "Looking at what's open…", resume: "Opening…", retrieve: "Opening…", restore: "Opening…",
+           start: "Opening…", launch: "Opening…", save: "Saving…" }[verb] || "Working…";
+}
+
+// ---- the live chip: what will happen if this runs -------------------------------
+function intent(text) {
+  const t = text.trim();
+  if (!t) return "";
+  if (state.view === "ask") return `Name → ${t}`;
+  if (state.view === "confirm") return /^(yes|yeah|yep|confirm|sure|ok)/i.test(t) ? `Delete ${state.name}` : `Keep ${state.name}`;
+  let m;
+  if (state.view === "draft") {
+    if ((m = t.match(/^(drop|remove|skip|untick|keep|add|tick)\s+(.+)/i))) return `${/^(keep|add|tick)/i.test(m[1]) ? "Keep" : "Drop"} → ${m[2]}`;
+    if ((m = t.match(/^(?:(?:done|finished)[\s,.]+)?(?:save|name it|call it)(?:\s+(?:it|this))?(?:\s+(?:as|called))?\s*([^.!?]*)/i))) return `Save as → ${m[1].trim() || state.name || "…"}`;
+    if (/^(cancel|discard)/i.test(t)) return "Cancel this park";
+    if (/^(show|list|resume|view|open)\b/i.test(t)) return "";
+    return "Note";
+  }
+  if (/^(list|parks|(show|see|view)( me)?( all)? (my |the )?parks|my parks)\b/i.test(t)) return "Show parks";
+  if ((m = t.match(/^(?:park|new park)\b[\s.,:;!?]*([^.,:;!?\n]*)/i))) return `New park${m[1].trim() ? " → " + m[1].trim() : ""}`;
+  if ((m = t.match(/^unpin\s+([^.,:;!?\n]+)/i))) return `Unpin → ${m[1].trim()}`;
+  if ((m = t.match(/^pin\b(?:\s+(?:this|it))?\s*([^.,:;!?\n]*)/i))) return `📌 Pin → ${m[1].trim() || state.name || "this park"}`;
+  if ((m = t.match(/^(?:start|launch|set ?up|fire up)\s+([^.,:;!?\n]+)/i))) return `▶ Start → ${m[1].trim()}`;
+  if ((m = t.match(/^(?:resume|retrieve|restore|back to|continue|switch to|open)\s+([^.,:;!?\n]+)/i))) return `Resume → ${m[1].trim()}`;
+  if ((m = t.match(/^(?:delete|trash|forget|remove)\s+([^.,:;!?\n]+)/i))) return `Delete → ${m[1].trim()}`;
+  if ((m = t.match(/^(?:view|show|see|look at)\s+([^.,:;!?\n]+)/i))) return `View → ${m[1].trim()}`;
+  return "";
+}
+function updateChip() {
+  const label = intent(q.value);
+  $("chip").textContent = label;
+  $("chip").classList.toggle("hidden", !label);
+}
+
+// ---- drawing each view ---------------------------------------------------------
+function noteBlock(note, steps, emptyText = "No note") {
+  const lines = note ? `<p>${esc(note)}</p>` : `<p class="empty">${esc(emptyText)}</p>`;
+  const list = (steps || []).map(s => `<div class="step"><span class="box"></span>${esc(s)}</div>`).join("");
+  return `<div class="note">${lines}${list}</div>`;
+}
+
+function itemGroups(groups, clickable) {
+  return groups.map(g => `<div class="label">${esc(g.label)} · ${g.items.filter(i => i.keep).length}${clickable ? " of " + g.items.length : ""}</div>
+    <div class="rows">${g.items.map(it => `<div class="row ${it.keep ? "" : "off"} ${clickable ? "" : "static"}" ${clickable ? `data-toggle="${it.i}"` : ""}>
+      ${clickable ? `<span class="check">${it.keep ? "✓" : ""}</span>` : ""}${it.n ? `<span class="num">${it.n}</span>` : ""}
+      ${avatar(it.tab ? (it.host || it.app) : it.app)}
+      <span class="title">${it.tab ? "" : `${esc(it.app)} — `}${esc(it.title)}</span>
+      ${it.tab && it.host ? `<span class="meta">${esc(it.host.replace(/^www\./, ""))}</span>` : ""}</div>`).join("")}</div>`).join("");
+}
+
+const views = {
+  home(s) {
+    const msg = s.message ? `<div class="msg">${esc(s.message)}</div>` : "";
+    const draft = s.draft ? `<div class="foot">You have an unsaved park. Say “park” to go back to it.</div>` : "";
+    if (!s.parks.length) return `<section>${msg}<div class="empty-state">No parks yet.<br>Say <b>“Park”</b> to save what's open right now.</div>${draft}</section>`;
+    selected = Math.min(selected, s.parks.length - 1);
+    return `<section>${msg}<div class="label">Your parks · click to view · ↑↓ Enter to resume</div><div class="scroll"><div class="rows">${
+      s.parks.map((p, i) => `<div class="row ${i === selected ? "sel" : ""}" data-say="view ${esc(p.name)}">
+        <span class="dot" style="background:${color(p.name)}"></span>
+        <span class="title"><b>${esc(p.name)}</b>${p.preset ? ` <span class="badge">📌 preset</span>` : ""}${p.next ? ` <span class="meta">· next: ${esc(p.next)}</span>` : ""}</span>
+        <span class="meta">${esc(p.ago)} · ${plural(p.items, "item")}${p.versions > 1 ? ` · ${p.versions} versions` : ""}</span></div>`).join("")
+    }</div></div>${draft}</section>`;
+  },
+  draft(s) {
+    const total = s.groups.reduce((n, g) => n + g.items.length, 0);
+    const kept = s.groups.reduce((n, g) => n + g.items.filter(i => i.keep).length, 0);
+    return `<section><h2>New park ${s.name ? `<span class="sub">→ ${esc(s.name)}</span>` : ""}<span class="draft-tag">not saved</span></h2>
+      ${noteBlock(s.note, s.steps, "No note yet. Say what you were doing and what's next.")}
+      <div class="scroll">${itemGroups(s.groups, true)}</div>
+      ${s.no_tabs.length ? `<div class="warn">${esc(s.no_tabs.join(" and "))} tabs aren't listed one by one, only the tab in front. Add the Stage extension to ${esc(s.no_tabs.join(" / "))} to pick tabs.</div>` : ""}
+      ${s.message ? `<div class="msg">${esc(s.message)}</div>` : ""}
+      <div class="actions"><button class="primary" data-say="save">Save · ${kept} of ${total}</button><button data-say="cancel">Cancel</button></div>
+      <div class="foot">“drop 3” · “drop youtube” · say your note · “save as coding”</div></section>`;
+  },
+  ask(s) { return ""; },
+  park(s) {
+    const versions = s.versions.length ? `<details><summary>${plural(s.versions.length, "older version")}</summary>${
+      s.versions.map(v => `<div class="version">${esc(v.ago)} — ${esc(v.note || "no note")}</div>`).join("")}</details>` : "";
+    const pinnedCount = s.pinned.reduce((n, g) => n + g.items.length, 0);
+    const pinned = pinnedCount ? `<details><summary>📌 Preset: ${plural(pinnedCount, "pinned item")} open on “start ${esc(s.name)}”</summary>
+      ${itemGroups(s.pinned, false)}</details>` : "";
+    const buttons = pinnedCount
+      ? `<button class="primary" data-say="start ${esc(s.name)}">▶ Start preset</button><button data-say="resume ${esc(s.name)}">Resume last park</button>
+         <button data-say="pin ${esc(s.name)}">Re-pin</button>`
+      : `<button class="primary" data-say="resume ${esc(s.name)}">Resume</button><button data-say="pin ${esc(s.name)}">📌 Pin as preset</button>`;
+    return `<section><h2><span class="dot" style="background:${color(s.name)}"></span>${esc(s.name)} <span class="sub">parked ${esc(s.ago)}</span>
+        ${pinnedCount ? `<span class="badge">📌 preset</span>` : ""}</h2>
+      ${s.message ? `<div class="msg" style="margin:-4px 0 8px">${esc(s.message)}</div>` : ""}
+      ${noteBlock(s.note, s.steps)}<div class="scroll">${itemGroups(s.groups, false)}</div>${pinned}${versions}
+      <div class="actions">${buttons}<button data-say="list">All parks</button>
+      <button class="danger" data-say="delete ${esc(s.name)}">Delete</button></div></section>`;
+  },
+  resume(s) {
+    const opened = s.opened.map(o => `<span class="pill">${esc(o.replace(/\s+/g, " "))}</span>`).join("");
+    const skipped = s.skipped.length ? `<details><summary>${s.skipped.length} not reopened</summary>${
+      s.skipped.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : "";
+    return `<section><h2>${s.verb === "Started" ? "▶ Started" : "↩"} ${esc(s.name)} <span class="sub">${s.verb === "Started" ? "last parked" : "parked"} ${esc(s.ago)}</span></h2>${noteBlock(s.note, s.steps)}
+      <div class="label">Opened ${s.opened.length}</div><div class="pills">${opened || `<span class="meta">Nothing to open, it's all here</span>`}</div>
+      ${skipped}</section>`;
+  },
+  confirm(s) {
+    return `<section><h2>${esc(s.title)}</h2>${s.lines.map(l => `<div class="foot" style="margin-top:2px">${esc(l)}</div>`).join("")}
+      <div class="actions"><button class="primary" style="background:var(--danger);border-color:var(--danger)" data-say="yes">Delete</button>
+      <button data-say="keep">Keep it</button></div></section>`;
+  },
+  message(s) {
+    return `<section><h2>${esc(s.title)}</h2>${s.lines.map(l => `<div class="step">• ${esc(l)}</div>`).join("")}</section>`;
+  },
+};
+
+const PLACEHOLDER = {
+  home: "park · show my parks · resume coding · start dsa",
+  draft: "drop 3 · your note · save as coding",
+  ask: "coding, acads, dsa…",
+  park: "resume · pin this · start · delete",
+  confirm: "yes / no",
+};
+
+function render(s) {
+  state = s;
+  const asking = s.view === "ask" ? s.prompt : s.view === "confirm" ? s.title : "";
+  $("ask").textContent = asking;
+  $("ask").style.display = s.view === "ask" ? "block" : "none";
+  q.placeholder = PLACEHOLDER[s.view] || PLACEHOLDER.home;
+  view.innerHTML = views[s.view](s);
+  updateChip();
+  fit();
+}
+
+// Ask Python to resize the window to fit what's drawn
+function fit() {
+  requestAnimationFrame(() => pywebview.api.resize(Math.ceil($("wrap").getBoundingClientRect().height)));
+}
+
+// ---- input ---------------------------------------------------------------------
+async function submit(text = q.value) {
+  clearTimeout(autoRun);
+  autoRun = null;
+  if (busy) return;
+  q.value = "";
+  q.style.height = "48px";
+  updateChip();
+  render(await call("submit", text));
+}
+
+q.addEventListener("input", () => { updateChip(); q.style.height = "48px"; q.style.height = Math.min(q.scrollHeight + 2, 110) + "px"; fit(); });
+q.addEventListener("paste", () => {
+  // Wispr pastes your words: run them after a short quiet, no Enter needed
+  clearTimeout(autoRun);
+  autoRun = setTimeout(submit, 1200);
+});
+q.addEventListener("keydown", e => {
+  if (e.key !== "Enter" && e.key !== "Control" && !(e.ctrlKey && e.key.toLowerCase() === "v")) { clearTimeout(autoRun); autoRun = null; }
+  if (e.key === "Escape") { e.preventDefault(); pywebview.api.hide(); return; }
+  if (state.view === "home" && !q.value && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+    e.preventDefault();
+    const n = state.parks.length;
+    if (n) { selected = (selected + (e.key === "ArrowDown" ? 1 : n - 1)) % n; render(state); }
+    return;
+  }
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    if (state.view === "home" && !q.value.trim() && state.parks.length) return submit("resume " + state.parks[selected].name);
+    submit();
+  }
+});
+
+view.addEventListener("click", async e => {
+  const target = e.target.closest("[data-toggle], [data-say]");
+  if (!target) return;
+  if (target.dataset.toggle !== undefined) render(await call("toggle", +target.dataset.toggle));
+  else submit(target.dataset.say);
+  q.focus();
+});
+
+// ---- called from Python each time the bar opens ----------------------------------
+window.Stage = {
+  show(view) { if (!busy) render(view); },  // Python pushing an update (e.g. tabs arrived)
+  open() {
+    clearTimeout(autoRun);
+    q.value = "";
+    q.style.height = "48px";
+    selected = 0;
+    q.focus();
+    pywebview.api.opened().then(render);  // don't wait: focus is what matters first
+    return document.activeElement === q;
+  },
+};
+</script>
+</body>
+</html>

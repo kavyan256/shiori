@@ -1,0 +1,291 @@
+"""Doing what you said. Knows nothing about windows or HTML: every method returns
+a plain dict (a "view") that the command bar draws.
+
+Views:
+  home     your parks                          {"view", "parks": [...], "draft": bool}
+  draft    a park being built                  {"view", "name", "note", "steps", "groups", "message"}
+  ask      waiting for a name                  {"view", "prompt"}
+  park     one saved park, read-only           {"view", "name", "ago", "note", "steps", "groups", "versions",
+                                                "pinned", "message"}
+  resume   just resumed or started             {"view", "verb", "name", "ago", "note", "steps", "opened", "skipped"}
+  confirm  are you sure you want to delete     {"view", "name", "title", "lines"}
+  message  help / not found                    {"view", "title", "lines"}
+"""
+import time
+
+import browser
+import restore
+import store
+from capture import list_windows
+from commands import YES, app_name, parse, parse_draft, pick_windows
+from items import current_items, kind, tab_items
+from notes import split_note
+from presets import preselect, profile, signatures
+
+DRAFT_EXPIRES = 2 * 3600  # an untouched draft older than this is thrown away
+
+
+class Controller:
+    def __init__(self):
+        self.draft = None           # the park being built: {"items", "note", "steps", "name", "at"}
+        self.asking_name = False    # waiting for "what should I call it?"
+        self.confirm_delete = None  # park name waiting for "yes"
+        self.viewing = None         # the park on screen, for "pin this"
+
+    def opened(self):
+        """The bar just opened: carry on with a draft if there is one, else show your parks."""
+        self.asking_name = False
+        self.confirm_delete = None
+        if self.draft and time.time() - self.draft["at"] > DRAFT_EXPIRES:
+            self.draft = None
+        return self.draft_view() if self.draft else self.home()
+
+    # --- one entry point for everything you say -------------------------------
+    def handle(self, text):
+        text = text.strip()
+        if self.confirm_delete:
+            name, self.confirm_delete = self.confirm_delete, None
+            if YES.match(text):
+                store.delete(name)
+                return self.home(f"Deleted “{name}”. It's in data/trash if you need it back.")
+            return self.home(f"Kept “{name}”.")
+        if self.asking_name:
+            self.asking_name = False
+            return self.save(text) if text else self.ask_name()
+        if not text:
+            return self.draft_view() if self.draft else self.home()
+
+        if self.draft:
+            command = parse_draft(text)
+            self.draft["at"] = time.time()
+            if command[0] in ("drop", "keep"):
+                return self.choose(command[1], keep=command[0] == "keep")
+            if command[0] == "save":
+                return self.save(command[1])
+            if command[0] == "cancel":
+                self.draft = None
+                return self.home("Park cancelled. Nothing was saved.")
+            if command[0] == "note":
+                return self.set_note(command[1])
+            if command[0] == "park":
+                return self.rename_draft(command[1]) if command[1] else self.draft_view("Back to your unsaved park.")
+            if command[0] == "pin_draft":
+                return self.draft_view("Save it first (“save as dsa”), then say “pin this”.")
+        else:
+            command = parse(text)
+            if command[0] == "park":
+                return self.start_draft(command[1], command[2])
+            if command[0] == "delete":
+                return self.ask_delete(command[1])
+            if command[0] == "pin":
+                return self.pin(command[1])
+            if command[0] == "unpin":
+                return self.unpin(command[1])
+
+        if command[0] == "list":
+            return self.home()
+        if command[0] == "resume":
+            return self.resume(command[1])
+        if command[0] == "start":
+            return self.start(command[1])
+        if command[0] == "view":
+            return self.view(command[1])
+        return self.help()
+
+    # --- building a park ------------------------------------------------------------
+    def start_draft(self, name="", note=""):
+        browser.request_reports()  # exact tabs right now, not the last report
+        self.draft = {"items": current_items(), "note": "", "steps": [], "name": name, "at": time.time()}
+        message = "Untick what you don't want, say a note, then “save as <name>”."
+        existing = store.load(name) if name else None
+        if existing:  # "park coding": tick what belongs to coding, untick the rest
+            name = self.draft["name"] = existing["name"]
+            ticked = preselect(self.draft["items"], existing)
+            message = (f"Ticked the {ticked} that belong to {name}. “keep 5” to add more, then “save”."
+                       if ticked else f"Nothing open looks like {name}'s things. Tick what belongs, then “save”.")
+        if note:
+            self.set_note(note)
+        return self.draft_view(message)
+
+    def rename_draft(self, name):
+        """'park dsa' while a draft is open: it's for dsa now; tick dsa's things if dsa exists."""
+        existing = store.load(name)
+        self.draft["name"] = existing["name"] if existing else name
+        if not existing:
+            return self.draft_view(f"This park will be saved as {name}.")
+        ticked = preselect(self.draft["items"], existing)
+        return self.draft_view(f"Now parking {existing['name']}: ticked the {ticked} that belong to it.")
+
+    def tabs_arrived(self, browser_name):
+        """A browser reported after the draft was made (its extension woke up late):
+        swap its single window row for one row per tab. Returns the new view, or None."""
+        exe = browser.EXE[browser_name]
+        if not self.draft or not any(i["app"] == exe and kind(i) == "window" for i in self.draft["items"]):
+            return None
+        reports = browser.fresh_tabs({w.app for w in list_windows()})  # all open apps: see fresh_tabs
+        if browser_name not in reports:
+            return None
+        others = [i for i in self.draft["items"] if i["app"] != exe]
+        new_tabs = tab_items(browser_name, reports[browser_name])
+        existing = store.load(self.draft["name"]) if self.draft["name"] else None
+        if existing:  # same pre-ticking as start_draft, for the tabs that came late
+            sigs = profile(existing)
+            for tab in new_tabs:
+                tab["keep"] = bool(signatures(tab) & sigs)
+        self.draft["items"] = others + new_tabs
+        return self.draft_view(f"{browser_name.title()} tabs added.")
+
+    def set_note(self, text):
+        split = split_note(text)
+        self.draft["note"], self.draft["steps"] = split["brain_dump"], split["next_steps"]
+        return self.draft_view("Note added. Say a new one to replace it.")
+
+    def toggle(self, index):
+        if not self.draft:
+            return self.home()
+        item = self.draft["items"][index]
+        item["keep"] = not item["keep"]
+        return self.draft_view()
+
+    def choose(self, what, keep):
+        """'drop 3' / 'drop youtube' / 'keep 3'."""
+        picked = pick_windows(what, self.draft["items"])
+        if not picked:
+            return self.draft_view(f"Didn't find “{what}”. Say a number from the list.")
+        for i in picked:
+            self.draft["items"][i]["keep"] = keep
+        return self.draft_view(f"{'Kept' if keep else 'Dropped'} {', '.join(str(i + 1) for i in picked)}")
+
+    def ask_name(self):
+        self.asking_name = True
+        return {"view": "ask", "prompt": "What should this park be called?"}
+
+    def save(self, name):
+        name = name or self.draft["name"]
+        if not name or not store.slug(name):
+            return self.ask_name()
+        existing = store.load(name)  # exact name only: never fold "acads" into "coding"
+        name = existing["name"] if existing else name
+        draft, self.draft = self.draft, None
+        store.park(name, draft["items"], draft["note"], draft["steps"])
+        kept = sum(1 for i in draft["items"] if i["keep"])
+        versions = len(store.load(name)["snapshots"])
+        extra = f" · version {versions}" if versions > 1 else ""
+        return self.view(name, f"Saved ✓  {kept} of {len(draft['items'])} items{extra}")
+
+    def draft_view(self, message=""):
+        d = self.draft
+        return {"view": "draft", "name": d["name"], "note": d["note"], "steps": d["steps"],
+                "groups": groups(d["items"]), "message": message,
+                "no_tabs": sorted({app_name(i) for i in d["items"]
+                                   if i["app"] in ("chrome.exe", "msedge.exe") and kind(i) == "window"})}
+
+    # --- your parks -------------------------------------------------------------------
+    def home(self, message=""):
+        parks = []
+        for s in store.list_stages():
+            last = s["snapshots"][-1]
+            kept = [i for i in last["windows"] if i.get("keep", True)]
+            parks.append({
+                "name": s["name"], "ago": store.ago(last["parked_at"]),
+                "next": last["next_steps"][0] if last["next_steps"] else "",
+                "items": len(kept), "versions": len(s["snapshots"]), "preset": bool(s.get("pinned")),
+            })
+        return {"view": "home", "parks": parks, "draft": bool(self.draft), "message": message}
+
+    def view(self, spoken, message=""):
+        name = store.find(spoken)
+        if not name:
+            return self.not_found(spoken)
+        self.viewing = name
+        stage = store.load(name)
+        last = stage["snapshots"][-1]
+        return {
+            "view": "park", "name": name, "ago": store.ago(last["parked_at"]),
+            "note": last["brain_dump"], "steps": last["next_steps"],
+            "groups": groups([i for i in last["windows"] if i.get("keep", True)], numbered=False),
+            "versions": [{"ago": store.ago(s["parked_at"]), "note": s["brain_dump"]}
+                         for s in reversed(stage["snapshots"][:-1])][:5],
+            "pinned": groups(stage.get("pinned", []), numbered=False),
+            "message": message,
+        }
+
+    def resume(self, spoken):
+        name = store.find(spoken)
+        if not name:
+            return self.not_found(spoken)
+        snap = store.latest(name)
+        opened, skipped = restore.reopen(snap, name)
+        return {"view": "resume", "verb": "Resumed", "name": name, "ago": store.ago(snap["parked_at"]),
+                "note": snap["brain_dump"], "steps": snap["next_steps"], "opened": opened, "skipped": skipped}
+
+    # --- presets ------------------------------------------------------------------------
+    def pin(self, spoken):
+        """'pin this' (the park on screen) or 'pin dsa': its newest kept items become the preset."""
+        name = store.find(spoken) if spoken else self.viewing
+        if not name:
+            return self.not_found(spoken) if spoken else {
+                "view": "message", "title": "Which park?", "lines": ["Open one first (“view dsa”), or say “pin dsa”."]}
+        items = [i for i in store.latest(name)["windows"] if i.get("keep", True)]
+        store.set_pins(name, items)
+        return self.view(name, f"📌 Pinned {len(items)} items. Say “start {name}” any time to open them.")
+
+    def unpin(self, spoken):
+        name = store.find(spoken)
+        if not name:
+            return self.not_found(spoken)
+        store.set_pins(name, None)
+        return self.view(name, "Unpinned. It's a plain park again; its versions are untouched.")
+
+    def start(self, spoken):
+        """Open a preset's pinned items, with the newest park's note on top."""
+        name = store.find(spoken)
+        if not name:
+            return self.not_found(spoken)
+        stage = store.load(name)
+        if not stage.get("pinned"):  # not a preset: do the closest useful thing
+            view = self.resume(name)
+            view["skipped"] = [f"{name} isn't pinned yet, so its last park was resumed. "
+                               f"Say “pin {name}” to make it a preset."] + view["skipped"]
+            return view
+        last = stage["snapshots"][-1]
+        opened, skipped = restore.reopen({"windows": stage["pinned"]}, name)
+        return {"view": "resume", "verb": "Started", "name": name, "ago": store.ago(last["parked_at"]),
+                "note": last["brain_dump"], "steps": last["next_steps"], "opened": opened, "skipped": skipped}
+
+    def ask_delete(self, spoken):
+        name = store.find(spoken)
+        if not name:
+            return self.not_found(spoken)
+        versions = len(store.load(name)["snapshots"])
+        self.confirm_delete = name
+        return {"view": "confirm", "name": name, "title": f"Delete “{name}”?",
+                "lines": [f"{versions} saved version{'s' if versions > 1 else ''} will move to the trash folder.",
+                          "Say “yes” to delete, anything else to keep it."]}
+
+    def not_found(self, spoken):
+        names = [s["name"] for s in store.list_stages()]
+        return {"view": "message", "title": f"No park called “{spoken}”",
+                "lines": [f"Your parks: {', '.join(names)}" if names else "No parks yet. Say “park” to start one."]}
+
+    def help(self):
+        return {"view": "message", "title": "Try one of these",
+                "lines": ["Park", "Show my parks", "Resume coding", "View coding", "Pin this · Start dsa",
+                          "Park dsa (ticks dsa's things for you)", "Delete coding"]}
+
+
+def groups(items, numbered=True):
+    """Items grouped for display: apps first, then each browser window's tabs.
+    Every row keeps its position in the full list (i), which is what 'drop 3' and clicks use."""
+    out = {}
+    for i, item in enumerate(items):
+        if kind(item) == "tab":
+            label = f"{item['browser'].title()} · window {item['window']}"
+        else:
+            label = "Apps"
+        out.setdefault(label, []).append({
+            "i": i, "n": i + 1 if numbered else None, "app": app_name(item), "title": item["title"],
+            "keep": item.get("keep", True), "tab": kind(item) == "tab",
+            "host": item.get("url", "").split("/")[2] if item.get("url", "").count("/") >= 2 else "",
+        })
+    return [{"label": label, "items": rows} for label, rows in out.items()]
