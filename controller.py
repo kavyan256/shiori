@@ -11,6 +11,7 @@ Views:
   confirm  are you sure you want to delete     {"view", "name", "title", "lines"}
   message  help / not found                    {"view", "title", "lines"}
 """
+import difflib
 import time
 
 import browser
@@ -421,14 +422,31 @@ class Controller:
                           "Say “yes” to delete, anything else to keep it."]}
 
     def not_found(self, spoken):
+        """Not a dead end: the closest name as a question, and every park one click away."""
         names = [s["name"] for s in store.list_stages()]
-        return {"view": "message", "title": f"No park called “{spoken}”",
-                "lines": [f"Your parks: {', '.join(names)}" if names else "No parks yet. Say “park” to start one."]}
+        if not names:
+            return {"view": "message", "title": f"No park called “{spoken}”",
+                    "lines": [{"text": "Nothing is parked yet. Park what's open", "say": "park"}]}
+        close = difflib.get_close_matches(spoken.lower(), [n.lower() for n in names], n=1, cutoff=0.4)
+        guess = next((n for n in names if close and n.lower() == close[0]), None)
+        lines = [{"text": f"Did you mean “{guess}”? View it", "say": f"view {guess}"}] if guess else []
+        lines += [{"text": n, "say": f"view {n}", "park": True} for n in names if n != guess][:6]
+        return {"view": "message", "title": f"No park called “{spoken}”", "lines": lines}
 
     def help(self):
-        return {"view": "message", "title": "Try one of these",
-                "lines": ["Park → your note → save as coding", "Resume  (the last one) · Resume coding", "Show my parks", "View coding", "Pin this · Start dsa",
-                          "Park dsa (ticks dsa's things for you)", "Delete coding"]}
+        """Every command as something you can click; examples use your own park names."""
+        names = [s["name"] for s in store.list_stages()]
+        example = names[0] if names else "coding"
+        known = bool(names)
+        return {"view": "message", "title": "Try one of these · click or say it",
+                "lines": [{"text": "Park → your note → save as coding", "say": "park"},
+                          {"text": "Resume (the last one)", "say": "resume"} if known else "Resume (the last one)",
+                          {"text": f"Resume {example}", "say": f"resume {example}"} if known else f"Resume {example}",
+                          {"text": "Show my parks", "say": "show my parks"},
+                          {"text": f"View {example}", "say": f"view {example}"} if known else f"View {example}",
+                          "Pin this · Start dsa",
+                          "Park dsa  (ticks dsa's things for you)",
+                          f"Delete {example}"]}
 
 
 def too_long(name):

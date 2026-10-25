@@ -119,10 +119,10 @@
   .row.sel { background: var(--raised); box-shadow: inset 2px 0 0 var(--accent); }
   .row.static { cursor: default; } .row.static:hover { background: none; }
   .row .num { color: var(--faint); width: 18px; text-align: right; font-size: 11px; flex: none; }
-  .row .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  .row .title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
                 background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 0 1px;
                 transition: color var(--base), background-size var(--base) var(--ease); }
-  .row .meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .row .meta { color: var(--muted); font-size: 12px; white-space: nowrap; margin-left: auto; }
   .row.off .title { color: var(--faint); background-size: 100% 1px; }   /* strike-through draws left to right */
   .row.off .avatar { opacity: .4; }
   .row.flash { animation: flash 480ms var(--ease); }
@@ -191,6 +191,19 @@
   .gstep.next .check { border-color: var(--accent); animation: breathe 1.6s ease-in-out infinite; }
   @keyframes breathe { 50% { box-shadow: 0 0 0 4px var(--accent-soft); } }
   .gfoot { margin-top: 8px; color: var(--muted); font-size: 12px; }
+  /* the guide once only one step is left: a single line, so your parks stay in view */
+  .guide.compact { display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
+  .guide.compact .gtitle { flex: 1; font-size: 13px; }
+  .guide.compact .gtitle b { font-weight: 600; }
+  .guide.compact .gdone { color: var(--ok); font-size: 12px; white-space: nowrap; }
+  /* help and "not found": every line is something you can click */
+  .say-line { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin: 0 -10px; border-radius: 9px;
+              cursor: pointer; animation: rise var(--base) var(--ease) backwards; animation-delay: calc(var(--i) * 40ms); }
+  .say-line:hover { background: var(--raised); }
+  .say-line .go { margin-left: auto; color: var(--muted); font-size: 12px; opacity: .45; transition: opacity var(--fast); }
+  .say-line:hover .go { opacity: 1; }
+  .say-line.plain { cursor: default; color: var(--muted); } .say-line.plain:hover { background: none; }
+  .say-line .pdot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
   button.undo { position: relative; overflow: hidden; }
   button.undo i { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--accent);
                   transform-origin: left; animation: drain linear forwards; }
@@ -343,13 +356,22 @@ function cueBlock(gitCues) {
     <span><b>${esc(c.repo)}</b> ${esc(c.text)}</span>${c.drift ? `<span class="drift">${esc(c.drift)}</span>` : ""}</div>`).join("")}</div>`;
 }
 
+// "Claude — Claude" -> "Claude"; "Chrome — Page - Google Chrome" -> "Chrome — Page": the app is said once
+const APP_SUFFIX = { "VS Code": "visual studio code", "Chrome": "google chrome", "Edge": "microsoft edge" };
+function rowTitle(app, title) {
+  const t = title.trim();
+  if (t.toLowerCase() === app.toLowerCase()) return "";
+  const last = t.split(/\s[-—–]\s/).pop().toLowerCase();
+  const sameApp = last !== t.toLowerCase() && (last.includes(app.toLowerCase()) || last === APP_SUFFIX[app]);
+  return sameApp ? t.slice(0, t.length - last.length).replace(/\s[-—–]\s$/, "") : t;
+}
 function row(it, clickable) {
   const icon = it.tab ? (it.host || it.app) : it.app;
   const named = it.kind === "window" || it.kind === "file";  // apps and files say which app; tabs and terminals are grouped
   const meta = it.meta || (it.tab && it.host ? it.host.replace(/^www\./, "") : "");
   return `<div class="row ${it.keep ? "" : "off"} ${clickable ? "" : "static"}" ${clickable ? `data-toggle="${it.i}" data-nav` : ""}>
     ${clickable ? `<span class="check">${CHECK}</span>` : ""}${it.n ? `<span class="num">${it.n}</span>` : ""}
-    ${avatar(icon)}<span class="title">${named ? `${esc(it.app)} — ` : ""}${esc(it.title)}</span>
+    ${avatar(icon)}<span class="title">${named ? (rowTitle(it.app, it.title) ? `${esc(it.app)} — ${esc(rowTitle(it.app, it.title))}` : esc(it.app)) : esc(it.title)}</span>
     ${meta ? `<span class="meta">${esc(meta)}</span>` : ""}</div>`;
 }
 
@@ -391,6 +413,12 @@ const GUIDE = [
 function guideCard(progress) {
   const done = GUIDE.filter(([key]) => progress[key]).length;
   const next = GUIDE.findIndex(([key]) => !progress[key]);
+  if (done === GUIDE.length - 1) {
+    const [, title, how] = GUIDE[next];
+    return `<div class="guide compact"><span class="gdone">✓ ${done} of 3</span>
+      <span class="gtitle">Last step: ${title.toLowerCase()} · ${how}</span>
+      <button class="ghost" data-say="hide guide">Hide</button></div>`;
+  }
   return `<div class="guide">
     <div class="guide-head"><span>Getting started · ${done} of 3</span>
       <button class="ghost" data-say="hide guide">Hide</button></div>
@@ -407,7 +435,7 @@ const views = {
     const msg = s.message ? `<div class="msg">${esc(s.message)}${s.undo ? ` ${undoButton(s, true)}` : ""}</div>` : "";
     const draft = s.draft ? `<div class="foot">You have an unsaved park. Say “park” to go back to it.</div>` : "";
     const parkButton = `<div class="actions"><button class="primary" data-say="park">${s.draft ? "Back to unsaved park" : "Park what's open"}</button>
-      ${s.draft ? "" : `<button data-say="park and clear" title="Park, then close what you saved">Park and clear</button>`}</div>`;
+      ${s.draft ? "" : `<button class="ghost" data-say="park and clear" title="Park, then close what you saved">or park and clear</button>`}</div>`;
     const guide = s.guide ? guideCard(s.guide) : "";
     if (!s.parks.length && guide) return `<section>${msg}${guide}${parkButton}${draft}</section>`;
     if (s.parks.length && guide) return `<section>${msg}${guide}<div class="label">Your parks</div>
@@ -494,7 +522,11 @@ const views = {
   },
 
   message(s) {
-    return `<section><h2>${esc(s.title)}</h2><div class="stagger">${s.lines.map((l, i) => `<div class="step" style="--i:${i}">· ${esc(l)}</div>`).join("")}</div></section>`;
+    const line = (l, i) => typeof l === "string"
+      ? (s.lines.some(x => typeof x !== "string") ? `<div class="say-line plain" style="--i:${i}">${esc(l)}</div>`
+                                                  : `<div class="step" style="--i:${i}">· ${esc(l)}</div>`)
+      : `<div class="say-line" data-say="${esc(l.say)}" style="--i:${i}">${l.park ? `<span class="pdot"></span>` : ""}${esc(l.text)}<span class="go">↵</span></div>`;
+    return `<section><h2>${esc(s.title)}</h2><div class="stagger">${s.lines.map(line).join("")}</div></section>`;
   },
 };
 
