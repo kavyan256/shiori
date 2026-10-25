@@ -1,5 +1,7 @@
 # Stage — Plan v2
 
+*Working notes from building Shiori, written while it was still called Stage.*
+
 > **Park your work by voice. Resume exactly where your head was.**
 
 For: **No Hands: The Wispr Challenge** (WeMakeDevs × Wispr Flow).

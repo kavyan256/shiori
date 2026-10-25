@@ -1,5 +1,5 @@
-STAGE: park your work by voice, resume where your head was
-=============================================================
+SHIORI: park your work by voice, resume where your head was
+==============================================================
 
 Install (about 30 seconds, no admin needed)
   1. Right-click Shiori-setup.zip -> Extract All

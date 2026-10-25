@@ -1,5 +1,7 @@
 # Stage — Review from three users (25 Oct 2026)
 
+*Working notes from building Shiori, written while it was still called Stage.*
+
 What Stage is today: a tray app. Ctrl+Alt+S opens a command bar; you speak (Wispr) or type.
 "Park" captures every window and browser tab as a draft → drop what you don't want → say a
 note → "save as coding". Later "resume coding" reopens folders, apps and tabs (as a named tab

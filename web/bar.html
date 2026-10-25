@@ -499,7 +499,11 @@ const views = {
   resume(s) {
     const started = s.verb === "Started";
     const pills = s.opened.map((o, i) => `<span class="pill" data-open="${i}"><span class="spin"></span><span class="ok">✓</span>${esc(o.replace(/\s+/g, " "))}</span>`).join("");
-    const skipped = s.skipped.length ? `<details><summary>${s.skipped.length} not reopened</summary>${
+    // "already open" isn't a failure: count it apart from things that really couldn't come back
+    const already = s.skipped.filter(x => x.endsWith("(already open)")).length;
+    const missed = s.skipped.length - already;
+    const summary = [already && `${already} already open`, missed && `${missed} not reopened`].filter(Boolean).join(" · ");
+    const skipped = s.skipped.length ? `<details><summary>${summary}</summary>${
       s.skipped.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : "";
     const verb = { Started: "Started", Reopened: "Reopened" }[s.verb] || "Resuming";
     return `<section><h2>${verb} ${esc(s.name)} <span class="sub">${started ? "last parked" : "parked"} ${esc(s.ago)}</span></h2>
