@@ -17,8 +17,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# STAGE_DATA lets tests save somewhere else without touching your real parks
-DATA_DIR = Path(os.environ.get("STAGE_DATA", Path(__file__).parent / "data")) / "stages"
+import paths
+
+DATA_DIR = paths.DATA / "stages"  # see paths.py: ./data from source, %LOCALAPPDATA%\Stage as Stage.exe
 TRASH_DIR = DATA_DIR.parent / "trash"
 
 

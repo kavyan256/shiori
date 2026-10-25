@@ -25,7 +25,7 @@ from items import kind, without_time
 
 # Store apps all run inside this host, so its exe can't relaunch a specific app.
 # Python on its own opens nothing (and old parks may hold Stage's own popup).
-CANT_RELAUNCH = {"applicationframehost.exe", "unknown", "python.exe", "pythonw.exe"}
+CANT_RELAUNCH = {"applicationframehost.exe", "unknown", "python.exe", "pythonw.exe", "stage.exe"}
 # Terminal windows saved as plain windows (old parks): a fresh window opens
 CONSOLES = {"cmd.exe", "powershell.exe", "pwsh.exe"}
 

@@ -31,10 +31,11 @@ import winerror
 from PIL import Image, ImageDraw
 
 import browser
+import paths
 import store
 from controller import Controller
 
-APP_DIR = Path(__file__).resolve().parent
+APP_DIR = paths.APP_DIR
 TITLE = "Stage"
 HOTKEY = (win32con.MOD_CONTROL | win32con.MOD_ALT | 0x4000, ord("S"))  # Ctrl+Alt+S, 0x4000 = no repeat
 HOTKEY_LABEL = "Ctrl+Alt+S"
@@ -182,7 +183,7 @@ def set_start_with_windows(on):
     if not on:
         STARTUP_LINK.unlink(missing_ok=True)
         return
-    if getattr(sys, "frozen", False):  # packaged Stage.exe
+    if paths.FROZEN:  # packaged Stage.exe
         target, args = sys.executable, ""
     else:
         target, args = str(Path(sys.executable).with_name("pythonw.exe")), f'"{APP_DIR / "main.py"}"'
@@ -207,10 +208,25 @@ def quit_app():
     window.destroy()
 
 
+EXTENSION_HELP = (
+    "To let Stage see your browser tabs, add its extension (one time):\n\n"
+    "1. In Chrome or Edge, open chrome://extensions (edge://extensions in Edge)\n"
+    "2. Turn on 'Developer mode' (top right)\n"
+    "3. Click 'Load unpacked' and pick the folder that just opened:\n   {folder}\n\n"
+    "Stage works without it too: browsers then show only their front tab.")
+
+
+def set_up_extension():
+    """Open the extension folder and show the 3 steps (the Web Store needs a review first)."""
+    os.startfile(paths.EXTENSION)
+    win32api.MessageBox(0, EXTENSION_HELP.format(folder=paths.EXTENSION), "Stage: browser tabs")
+
+
 def start_tray():
     global icon
     icon = pystray.Icon("stage", tray_image(), f"Stage · {HOTKEY_LABEL}", menu=pystray.Menu(
         pystray.MenuItem(f"Open  ({HOTKEY_LABEL})", lambda: show_bar(), default=True),
+        pystray.MenuItem("Set up browser tabs…", lambda: threading.Thread(target=set_up_extension, daemon=True).start()),
         pystray.MenuItem("Start with Windows", lambda item: set_start_with_windows(not starts_with_windows()),
                          checked=lambda item: starts_with_windows()),
         pystray.Menu.SEPARATOR,
@@ -264,7 +280,7 @@ if __name__ == "__main__":
     only_one_copy()
     log.info("starting")
     window = webview.create_window(
-        TITLE, url=str(APP_DIR / "web" / "bar.html"), js_api=Api(),
+        TITLE, url=str(paths.BUNDLE / "web" / "bar.html"), js_api=Api(),
         width=WIDTH, height=MIN_HEIGHT, frameless=True, on_top=True, hidden=True,
         resizable=False, easy_drag=False, background_color="#15171c",
     )
