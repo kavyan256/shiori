@@ -11,14 +11,14 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='14' fill='%230B0D12'/%3E%3Cpath d='M38 4h10v30l-5-4-5 4z' fill='%237AA2F7'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* Midnight, like the app: near-black blue, soft white, and one blue ribbon. */
   :root {
     --paper: #0B0D12; --page: #12151d; --ink: #e6e9f0; --ink-2: #9aa1b2; --rule: #232836;
     --ribbon: #7AA2F7; --ribbon-dark: #4f74c9; --on-ribbon: #0B0D12; --shadow: rgba(0, 0, 0, .55);
-    --serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
-    --sans: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+    --serif: "Inter", "Segoe UI", system-ui, sans-serif;  /* headings: the same clean sans, bolder */
+    --sans: "Inter", "Segoe UI", system-ui, sans-serif;
     --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
     --max: 1120px;
   }
@@ -79,7 +79,7 @@
   .chapter { display: grid; grid-template-columns: 120px 1fr 1.1fr; gap: 40px; align-items: start; padding: 48px 0;
              border-top: 1px solid var(--rule); }
   .chapter:first-of-type { border-top: 0; padding-top: 0; }
-  .num { font: 400 76px/0.9 "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", var(--serif); color: var(--ribbon); }
+  .num { font: 400 76px/0.9 "Yu Gothic UI", "Yu Gothic", "Noto Sans JP", var(--sans); color: var(--ribbon); }
   .chapter h3 { font: 400 34px/1.1 var(--serif); margin: 4px 0 12px; }
   .chapter p { margin: 0 0 18px; color: var(--ink-2); }
   .said { font: italic 400 24px/1.35 var(--serif); color: var(--ink); border-left: 3px solid var(--ribbon); padding-left: 16px; margin: 0; }
@@ -110,7 +110,7 @@
 
   /* ---- name ---- */
   .name-block { display: grid; grid-template-columns: auto 1fr; gap: 64px; align-items: center; }
-  .kanji { font: 400 220px/0.9 "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif; color: var(--ribbon); }
+  .kanji { font: 400 220px/0.9 "Yu Gothic UI", "Yu Gothic", "Noto Sans JP", sans-serif; color: var(--ribbon); }
   .name-block p { font: 400 clamp(24px, 2.6vw, 32px)/1.35 var(--serif); margin: 0; max-width: 22em; }
   .name-block p span { color: var(--ink-2); }
 
@@ -126,6 +126,18 @@
 
   footer { border-top: 1px solid var(--rule); padding: 40px 0 56px; color: var(--ink-2); font-size: 15px; }
   footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 28px; }
+
+  /* weights for the sans headings */
+  h1 { font-size: clamp(40px, 5.4vw, 70px); font-weight: 800; letter-spacing: -.035em; line-height: 1.04; }
+  h1 i { font-style: normal; }
+  h2 { font-weight: 700; letter-spacing: -.03em; line-height: 1.1; }
+  .mast .name { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+  .chapter h3 { font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
+  .said { font-style: normal; font-weight: 500; font-size: 21px; }
+  dl.back dt, .facts b { font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+  .name-block p { font-weight: 500; letter-spacing: -.015em; }
+  .num, ol.install li::before { font-weight: 700; }
+  .kanji { font-weight: 700; }
 
   @media (max-width: 900px) {
     .hero, .two, dl.back, .name-block { grid-template-columns: 1fr; gap: 40px; }
