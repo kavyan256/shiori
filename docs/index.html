@@ -3,275 +3,310 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Shiori: save your desk by voice</title>
-<meta name="description" content="A Windows tray app: say save my desk to keep every window, tab, terminal and file with a note for later. Say resume to bring it all back. Works with Wispr Flow.">
-<meta property="og:title" content="Shiori: save your desk by voice">
-<meta property="og:description" content="Say save my desk to keep everything that's open with a note. Say resume to bring it back, where your head was.">
-<meta property="og:image" content="img/draft.png">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='16' fill='%233567e0'/%3E%3Ctext x='32' y='45' font-family='Segoe UI,Arial' font-weight='700' font-size='38' text-anchor='middle' fill='white'%3ES%3C/text%3E%3C/svg%3E">
+<title>Shiori: a bookmark for your whole desk</title>
+<meta name="description" content="A free Windows app: say “save my desk” to keep every window, tab, terminal and file with a note for later. Say “resume” to bring it all back. Made for Wispr Flow.">
+<meta property="og:title" content="Shiori: a bookmark for your whole desk">
+<meta property="og:description" content="Say “save my desk” and leave a note. Say “resume” days later: everything reopens, and your note is the first thing you read.">
+<meta property="og:image" content="img/s-overlay.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='14' fill='%231c1b19'/%3E%3Cpath d='M38 4h10v30l-5-4-5 4z' fill='%23c8412f'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  /* A printed book: warm paper, ink, and one red ribbon. */
   :root {
-    --bg: #f6f7f9; --panel: #ffffff; --raised: #eef0f4; --line: #e3e6ec;
-    --text: #1b1d22; --muted: #5d6270; --accent: #3567e0; --accent-soft: rgba(53, 103, 224, .10); --ok: #2f8a3a;
-    --radius: 14px; --max: 1080px;
+    --paper: #f4efe4; --page: #fbf8f1; --ink: #1c1b19; --ink-2: #5e584e; --rule: #dcd3c2;
+    --ribbon: #c8412f; --ribbon-dark: #9e2f20;
+    --serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+    --sans: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+    --max: 1120px;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #14161b; --panel: #1d2027; --raised: #252933; --line: #2c303a;
-            --text: #ebebf0; --muted: #9a9fae; --accent: #7aa2f7; --accent-soft: rgba(122, 162, 247, .14); --ok: #9ece6a; }
+    :root { --paper: #161513; --page: #1e1c19; --ink: #ede6d8; --ink-2: #a79f91; --rule: #34302a;
+            --ribbon: #e0604b; --ribbon-dark: #b84836; }
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
-  body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.55;
-         font: 16px/1.55 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif; }
-  a { color: var(--accent); }
-  img { max-width: 100%; display: block; }
-  kbd { font: 600 13px "Segoe UI", system-ui, sans-serif; padding: 1px 7px; border-radius: 6px;
-        background: var(--panel); border: 1px solid var(--line); box-shadow: 0 1px 0 var(--line); }
-  code { font: 14px "Cascadia Code", Consolas, monospace; background: var(--raised); padding: 1px 6px; border-radius: 6px; }
-  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration-color: var(--ribbon); text-underline-offset: 3px; }
+  a:hover { color: var(--ribbon); }
+  :focus-visible { outline: 2px solid var(--ribbon); outline-offset: 3px; border-radius: 2px; }
+  img { max-width: 100%; height: auto; display: block; }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 28px; }
+  kbd, code, .cmd { font-family: var(--mono); font-size: .86em; }
+  code { overflow-wrap: anywhere; }
+  /* grid children may shrink below their images' natural width (else phones scroll sideways) */
+  .hero > *, .chapter > *, .two > *, dl.back > *, .name-block > * { min-width: 0; }
+  kbd { padding: 1px 7px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 5px; background: var(--page); }
 
-  /* top bar */
-  header.top { display: flex; align-items: center; gap: 10px; padding: 18px 0; }
-  .logo { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: #fff;
-          display: grid; place-items: center; font-weight: 700; }
-  header.top b { font-size: 18px; }
-  header.top nav { margin-left: auto; display: flex; gap: 18px; font-size: 15px; }
-  header.top nav a { color: var(--muted); text-decoration: none; }
-  header.top nav a:hover { color: var(--text); }
+  /* ---- masthead ---- */
+  .mast { display: flex; align-items: baseline; gap: 14px; padding: 26px 0; border-bottom: 1px solid var(--rule); }
+  .mast .name { font: 32px/1 var(--serif); letter-spacing: -.01em; text-decoration: none; }
+  .mast .jp { color: var(--ink-2); font-size: 15px; }
+  .mast nav { margin-left: auto; display: flex; gap: 26px; font-size: 15px; }
+  .mast nav a { text-decoration: none; color: var(--ink-2); }
+  .mast nav a:hover { color: var(--ink); }
 
-  /* hero */
-  .hero { display: grid; grid-template-columns: 1fr 1.1fr; gap: 48px; align-items: center; padding: 48px 0 72px; }
-  .eyebrow { display: inline-block; font-size: 13px; font-weight: 600; color: var(--accent); background: var(--accent-soft);
-             padding: 4px 12px; border-radius: 99px; }
-  h1 { font-size: clamp(36px, 5vw, 56px); line-height: 1.08; letter-spacing: -.02em; margin: 16px 0 18px; }
-  h1 em { font-style: normal; color: var(--accent); }
-  .lede { font-size: 19px; color: var(--muted); margin: 0 0 28px; max-width: 34em; }
-  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 12px; font-weight: 600;
-         text-decoration: none; border: 1px solid var(--line); color: var(--text); background: var(--panel); }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .btn.primary:hover { filter: brightness(1.08); }
+  /* ---- hero ---- */
+  .hero { position: relative; display: grid; grid-template-columns: 1fr 1.15fr; gap: 64px; align-items: end; padding: 72px 0 88px; }
+  h1 { font: 400 clamp(46px, 6.2vw, 84px)/1.0 var(--serif); letter-spacing: -.02em; margin: 0 0 28px; }
+  h1 i { color: var(--ribbon); }
+  .lede { font-size: 19px; color: var(--ink-2); margin: 0 0 34px; max-width: 30em; }
+  .lede b { color: var(--ink); font-weight: 600; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 22px; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; background: var(--ink); color: var(--paper);
+         border-radius: 999px; font-weight: 600; text-decoration: none; transition: transform .15s ease, background .15s ease; }
+  .btn:hover { background: var(--ribbon); color: #fff; transform: translateY(-1px); }
   .btn svg { width: 18px; height: 18px; }
-  .fine { margin-top: 12px; font-size: 14px; color: var(--muted); }
-  .shot { border-radius: var(--radius); box-shadow: 0 24px 60px rgba(20, 30, 60, .18), 0 2px 6px rgba(20, 30, 60, .08);
-          border: 1px solid var(--line); }
+  .quiet { font-size: 15px; color: var(--ink-2); }
+  .meta { margin-top: 20px; font-size: 14px; color: var(--ink-2); }
 
-  /* sections */
-  section { padding: 64px 0; border-top: 1px solid var(--line); }
-  h2 { font-size: clamp(26px, 3.4vw, 36px); letter-spacing: -.01em; margin: 0 0 10px; }
-  .sub { color: var(--muted); font-size: 18px; margin: 0 0 36px; max-width: 40em; }
+  /* the bookmark ribbon, hanging into the screenshot from above */
+  .plate { position: relative; }
+  .plate img { border-radius: 6px; box-shadow: 0 1px 0 var(--rule), 0 30px 60px -20px rgba(40, 30, 10, .35); }
+  .ribbon { position: absolute; top: -58px; right: 48px; width: 34px; height: 170px; z-index: 1; background: var(--ribbon);
+            clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%); box-shadow: inset -6px 0 0 var(--ribbon-dark);
+            transform-origin: top center; animation: sway 6s ease-in-out infinite; }
+  @keyframes sway { 50% { transform: rotate(1.4deg); } }
 
-  /* the three steps */
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  .step { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
-  .step .n { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
-             display: grid; place-items: center; font-weight: 700; margin-bottom: 12px; }
-  .step h3 { margin: 0 0 6px; font-size: 19px; }
-  .step p { margin: 0; color: var(--muted); }
-  .say { display: inline-block; margin-top: 12px; font-weight: 600; color: var(--text); background: var(--raised);
-         padding: 4px 10px; border-radius: 8px; font-size: 15px; }
+  /* ---- chapters ---- */
+  section { padding: 96px 0; border-top: 1px solid var(--rule); }
+  .kicker { font: 500 13px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ribbon); margin: 0 0 14px; }
+  h2 { font: 400 clamp(36px, 4.4vw, 56px)/1.05 var(--serif); letter-spacing: -.015em; margin: 0 0 18px; max-width: 16em; }
+  .intro { color: var(--ink-2); font-size: 19px; max-width: 36em; margin: 0 0 56px; }
 
-  /* screenshots side by side */
-  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
-  figure { margin: 0; }
-  figcaption { color: var(--muted); font-size: 15px; margin-top: 12px; }
+  .chapter { display: grid; grid-template-columns: 120px 1fr 1.1fr; gap: 40px; align-items: start; padding: 48px 0;
+             border-top: 1px solid var(--rule); }
+  .chapter:first-of-type { border-top: 0; padding-top: 0; }
+  .num { font: 400 76px/0.9 "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", var(--serif); color: var(--ribbon); }
+  .chapter h3 { font: 400 34px/1.1 var(--serif); margin: 4px 0 12px; }
+  .chapter p { margin: 0 0 18px; color: var(--ink-2); }
+  .said { font: italic 400 24px/1.35 var(--serif); color: var(--ink); border-left: 3px solid var(--ribbon); padding-left: 16px; margin: 0; }
+  .chapter img { border-radius: 6px; box-shadow: 0 1px 0 var(--rule), 0 20px 40px -18px rgba(40, 30, 10, .3); }
 
-  /* what comes back */
-  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; }
-  .card h3 { margin: 0 0 4px; font-size: 17px; }
-  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  /* ---- full-bleed moment ---- */
+  /* always dark, in either colour scheme */
+  .moment { background: #1c1b19; color: #f4efe4; border-top: 0; }
+  .moment .kicker { color: #e0604b; }
+  .moment h2 { color: #f4efe4; }
+  .moment .intro { color: #b9b1a3; }
+  .moment video { display: block; width: 100%; height: auto; border-radius: 6px; background: #000;
+                  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, .7); }
+  @media (prefers-color-scheme: dark) { .moment { background: #0c0b0a; } }
 
-  /* commands */
-  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line);
-          border-radius: var(--radius); overflow: hidden; }
-  td { padding: 12px 18px; border-top: 1px solid var(--line); vertical-align: top; }
-  tr:first-child td { border-top: 0; }
-  td:first-child { white-space: nowrap; font-weight: 600; width: 38%; }
-  td:last-child { color: var(--muted); }
+  /* ---- what comes back: a ruled list, not cards ---- */
+  dl.back { display: grid; grid-template-columns: 1fr 1fr; column-gap: 64px; margin: 0; }
+  dl.back div { display: grid; grid-template-columns: 170px 1fr; gap: 20px; padding: 20px 0; border-top: 1px solid var(--rule); }
+  dl.back dt { font: 400 24px/1.2 var(--serif); }
+  dl.back dd { margin: 0; color: var(--ink-2); }
 
-  /* install */
-  ol.install { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; max-width: 760px; }
-  ol.install li { counter-increment: s; position: relative; padding: 16px 20px 16px 62px; background: var(--panel);
-                  border: 1px solid var(--line); border-radius: var(--radius); }
-  ol.install li::before { content: counter(s); position: absolute; left: 18px; top: 15px; width: 28px; height: 28px;
-                          border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center;
-                          font-weight: 700; font-size: 14px; }
-  ol.install li span { display: block; color: var(--muted); font-size: 15px; margin-top: 2px; }
+  /* ---- commands ---- */
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 13px 0; border-top: 1px solid var(--rule); vertical-align: top; }
+  td:first-child { font-family: var(--mono); font-size: 15px; padding-right: 24px; white-space: nowrap; }
+  td:last-child { color: var(--ink-2); }
+  tr:last-child td { border-bottom: 1px solid var(--rule); }
 
-  .private { display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center; background: var(--panel);
-             border: 1px solid var(--line); border-radius: var(--radius); padding: 26px 28px; }
-  .private svg { width: 44px; height: 44px; color: var(--ok); }
-  .private h3 { margin: 0 0 4px; font-size: 20px; }
-  .private p { margin: 0; color: var(--muted); }
+  /* ---- name ---- */
+  .name-block { display: grid; grid-template-columns: auto 1fr; gap: 64px; align-items: center; }
+  .kanji { font: 400 220px/0.9 "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif; color: var(--ribbon); }
+  .name-block p { font: 400 clamp(24px, 2.6vw, 32px)/1.35 var(--serif); margin: 0; max-width: 22em; }
+  .name-block p span { color: var(--ink-2); }
 
-  .kanji { color: var(--muted); font-size: 17px; margin-left: -2px; }
-  .meaning { display: grid; grid-template-columns: auto 1fr; gap: 32px; align-items: center; }
-  .meaning .big { font-size: 96px; line-height: 1; color: var(--accent); font-family: "Yu Mincho", "MS Mincho", serif; }
-  @media (max-width: 860px) { .meaning { grid-template-columns: 1fr; gap: 12px; } .meaning .big { font-size: 64px; } }
+  /* ---- install + private ---- */
+  ol.install { list-style: none; counter-reset: s; padding: 0; margin: 0; }
+  ol.install li { counter-increment: s; display: grid; grid-template-columns: 56px 1fr; padding: 18px 0; border-top: 1px solid var(--rule); }
+  ol.install li::before { content: counter(s); font: 400 34px/1 var(--serif); color: var(--ribbon); }
+  ol.install small { display: block; color: var(--ink-2); font-size: 15px; margin-top: 4px; }
+  .facts { list-style: none; padding: 0; margin: 0; }
+  .facts li { padding: 18px 0; border-top: 1px solid var(--rule); }
+  .facts b { display: block; font: 400 24px/1.2 var(--serif); margin-bottom: 2px; }
+  .facts span { color: var(--ink-2); }
 
-  footer { padding: 36px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
-  footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
+  footer { border-top: 1px solid var(--rule); padding: 40px 0 56px; color: var(--ink-2); font-size: 15px; }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 28px; }
 
-  @media (max-width: 860px) {
-    .hero, .duo { grid-template-columns: 1fr; gap: 32px; }
-    .steps, .grid { grid-template-columns: 1fr; }
-    header.top nav a:not(.gh) { display: none; }
-    td:first-child { white-space: normal; width: auto; }
-    .hero { padding-top: 24px; }
+  @media (max-width: 900px) {
+    .hero, .two, dl.back, .name-block { grid-template-columns: 1fr; gap: 40px; }
+    .hero { padding: 40px 0 64px; }
+    .ribbon { top: -40px; right: 24px; height: 120px; width: 26px; }
+    .chapter { grid-template-columns: 1fr; gap: 16px; }
+    .num { font-size: 56px; }
+    dl.back div { grid-template-columns: 1fr; gap: 4px; }
+    .kanji { font-size: 140px; }
+    .mast nav a:not(:last-child) { display: none; }
+    section { padding: 72px 0; }
+    td:first-child { white-space: normal; }
   }
-  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .ribbon { animation: none; } .btn { transition: none; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <span class="logo">S</span><b>Shiori</b><span class="kanji" title="shiori: bookmark">栞</span>
-    <nav>
-      <a href="#how">How it works</a>
-      <a href="#install">Install</a>
-      <a class="gh" href="https://github.com/kavyan256/shiori">GitHub</a>
-    </nav>
-  </header>
 
-  <div class="hero">
-    <div>
-      <span class="eyebrow">Built for the No Hands: Wispr Challenge</span>
-      <h1>Save your whole desk by voice.<br><em>Resume where your head was.</em></h1>
-      <p class="lede">Switching tasks? Say <b>“save my desk”</b>. Shiori keeps every window, tab, terminal and file that's open,
-        plus a quick spoken note on what you were doing and what's next. Days later, say <b>“resume”</b> and it all
-        comes back, with your note in big type on top.</p>
-      <div class="cta">
-        <a class="btn primary" href="https://github.com/kavyan256/shiori/releases/latest/download/Shiori-setup.zip">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
-          Download for Windows</a>
-        <a class="btn" href="https://github.com/kavyan256/shiori">View the code</a>
-      </div>
-      <p class="fine">Windows 10 / 11 · free · about 25 MB · no admin, no account, no API key</p>
+<header class="wrap mast">
+  <a class="name" href="#">Shiori</a><span class="jp" title="shiori: Japanese for bookmark">栞 · bookmark</span>
+  <nav aria-label="Page">
+    <a href="#how">How it works</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/kavyan256/shiori">GitHub</a>
+  </nav>
+</header>
+
+<main>
+<div class="wrap hero">
+  <div>
+    <h1>Leave a bookmark in your <i>whole desk.</i></h1>
+    <p class="lede">Say <b>“save my desk”</b> and Shiori keeps every window, tab, terminal and file you have open,
+      with a spoken note on where you were. Days later, say <b>“resume”</b>. It all comes back, and your note is the
+      first thing you read.</p>
+    <div class="actions">
+      <a class="btn" href="https://github.com/kavyan256/shiori/releases/latest/download/Shiori-setup.zip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
+        Download for Windows</a>
+      <a class="quiet" href="https://github.com/kavyan256/shiori">or read the source</a>
     </div>
-    <img class="shot" src="img/draft.png" alt="Shiori's command bar saving a desk: VS Code, an Excel file, a dev-server terminal and two Chrome tabs ticked, a music tab left out, and a prompt to say what you were doing">
+    <p class="meta">Free and open source · Windows 10 / 11 · made for Wispr Flow, typing works too</p>
+  </div>
+  <div class="plate">
+    <span class="ribbon" aria-hidden="true"></span>
+    <img src="img/s-overlay.jpg" width="1920" height="1080"
+         alt="Resuming a desk: the note “I was capturing the TCP handshake in Wireshark” in large type over the dimmed desk, with next steps, the git branch, and a picture of the desk when it was saved">
   </div>
 </div>
 
 <section id="how">
   <div class="wrap">
-    <h2>Three things to say</h2>
-    <p class="sub">Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>S</kbd> anywhere, hold your Wispr Flow key and talk.
-      Typing works exactly the same.</p>
-    <div class="steps">
-      <div class="step"><div class="n">1</div><h3>Save your desk</h3>
-        <p>Everything open appears, already ticked. Chat and music start unticked. Drop anything with a click or a word.</p>
-        <span class="say">“save my desk”</span></div>
-      <div class="step"><div class="n">2</div><h3>Say what's next</h3>
-        <p>Talk through where you are. Shiori keeps your words, and each “next…” becomes a step you can tick off later.</p>
-        <span class="say">“I was fixing the login loop, next write the test”</span></div>
-      <div class="step"><div class="n">3</div><h3>Resume</h3>
-        <p>Folders, tabs, terminals and files reopen behind it, and your note fills the screen: the first thing you read.</p>
-        <span class="say">“resume shop-api”</span></div>
+    <p class="kicker">How it goes</p>
+    <h2>Three sentences, and you can walk away.</h2>
+    <p class="intro">Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>S</kbd> (or your own hotkey), hold your Wispr key and talk.</p>
+
+    <div class="chapter">
+      <span class="num" aria-hidden="true">一</span>
+      <div>
+        <h3>Save what's open</h3>
+        <p>Everything appears, already ticked: editor folders, tabs, terminals, files. Music and chat start unticked.
+          Drop anything with a click or a word.</p>
+        <p class="said">“Save my desk.”</p>
+      </div>
+      <img src="img/s-draft.png" width="1088" height="836" loading="lazy"
+           alt="The Shiori bar listing VS Code on ai-lab, a lab PDF, observations.txt, a jupyter lab terminal and Chrome tabs, with music left out">
     </div>
+
+    <div class="chapter">
+      <span class="num" aria-hidden="true">二</span>
+      <div>
+        <h3>Say what's in your head</h3>
+        <p>Where you were, what's next. Every “next…” becomes a step you can tick off later.</p>
+        <p class="said">“I was tuning the CNN, accuracy is stuck at seventy percent. Next, try data augmentation.”</p>
+      </div>
+      <img src="img/s-note.png" width="1088" height="560" loading="lazy"
+           alt="The note saved with the desk, split into what you were doing and two next steps">
+    </div>
+
+    <div class="chapter">
+      <span class="num" aria-hidden="true">三</span>
+      <div>
+        <h3>Come back</h3>
+        <p>Everything reopens where it was, and you're warned if you've switched git branch since.</p>
+        <p class="said">“Resume cybersec lab.”</p>
+      </div>
+      <img src="img/s-resumed.png" width="1088" height="584" loading="lazy"
+           alt="Resuming cybersec lab: the note, next steps, the git branch with a now-on-main warning, and Wireshark, VirtualBox, Chrome and Notepad reopening">
+    </div>
+  </div>
+</section>
+
+<section class="moment">
+  <div class="wrap">
+    <p class="kicker">See it work</p>
+    <h2>Two labs, a day apart. One sentence each.</h2>
+    <p class="intro">Not a wall of windows when you come back: your desk reopens behind a full-screen note with what you
+      were doing, what's next, and the branch you were on. Any key, and you're back at work.</p>
+    <video src="video/shiori-demo.mp4" poster="img/s-hero.jpg" controls muted playsinline preload="none" width="1920" height="1080"
+           aria-label="Demo: saving an AI lab desk by voice, then resuming a cybersec lab desk the next day"></video>
   </div>
 </section>
 
 <section>
   <div class="wrap">
-    <h2>Come back to your own words</h2>
-    <p class="sub">When you resume, everything reopens behind a full-screen note: what you were doing, what's
-      next, the branch you were on, and a picture of your desk as you left it. Any key, and you're back at work.</p>
-    <img class="shot" src="img/overlay.jpg" alt="After a resume: the note in big bold type over the dimmed desk, next steps as tick boxes, the git branch, and a picture of the desk when it was saved">
+    <p class="kicker">What comes back</p>
+    <h2>Not just windows. Where you were in them.</h2>
+    <p class="intro">The things that make “where was I?” take ten minutes.</p>
+    <dl class="back">
+      <div><dt>Browser tabs</dt><dd>As a named tab group in Chrome, Edge, Brave or Opera. A lecture at the second you stopped.</dd></div>
+      <div><dt>Terminals</dt><dd>In their folders. Dev servers like <code>npm run dev</code> or <code>jupyter lab</code> start again; nothing else re-runs.</dd></div>
+      <div><dt>Editors</dt><dd>VS Code, Cursor and Windsurf on the same folder. Explorer folders and apps too.</dd></div>
+      <div><dt>Office</dt><dd>Excel at the same sheet and cell, PowerPoint at the same slide, Word documents.</dd></div>
+      <div><dt>PDFs and notes</dt><dd>Back in the app they were open in.</dd></div>
+      <div><dt>Git</dt><dd>Branch, uncommitted changes, last commit, and a warning if you've switched since.</dd></div>
+    </dl>
   </div>
 </section>
 
 <section>
-  <div class="wrap duo">
-    <figure>
-      <img class="shot" src="img/note.png" alt="A saved desk with the spoken note and two next steps">
-      <figcaption>Your note, split into what you were doing and the steps that come next.</figcaption>
-    </figure>
-    <figure>
-      <img class="shot" src="img/resume.png" alt="Resuming shop-api: the note, one step ticked, the git branch, and VS Code, terminal, Excel and Chrome reopening">
-      <figcaption>Resuming: the note first, then the git branch you were on, while everything reopens.</figcaption>
-    </figure>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <h2>What comes back</h2>
-    <p class="sub">Not just windows. The things that make “where was I?” take ten minutes.</p>
-    <div class="grid">
-      <div class="card"><h3>Browser tabs</h3><p>As a named tab group in Chrome or Edge. YouTube lectures at the second you stopped.</p></div>
-      <div class="card"><h3>Terminals</h3><p>In their folders. Dev servers like <code>npm run dev</code> start again; nothing else re-runs.</p></div>
-      <div class="card"><h3>Code and folders</h3><p>VS Code workspaces, Explorer folders and apps like Claude or Windows Terminal.</p></div>
-      <div class="card"><h3>Office files</h3><p>Excel at the same sheet and cell, PowerPoint at the same slide, Word documents.</p></div>
-      <div class="card"><h3>PDFs and notes</h3><p>Back in the app they were open in, from your recent files.</p></div>
-      <div class="card"><h3>Git context</h3><p>Branch, uncommitted changes and last commit, and a warning if you've switched branch since.</p></div>
-    </div>
-  </div>
-</section>
-
-<section>
-  <div class="wrap duo">
+  <div class="wrap two">
     <div>
-      <h2>Everything by voice</h2>
-      <p class="sub" style="margin-bottom:20px">Every button has a sentence, and every sentence works typed too.</p>
+      <p class="kicker">Everything by voice</p>
+      <h2>Every button has a sentence.</h2>
+      <p class="intro" style="margin-bottom:32px">And every sentence works typed. Half-said words ask before they act.</p>
       <table>
         <tr><td>save my desk</td><td>Gather what's open</td></tr>
-        <tr><td>drop 3 · drop youtube</td><td>Leave something out</td></tr>
-        <tr><td>save as dsa · save</td><td>Save it, with a suggested name if you don't give one</td></tr>
-        <tr><td>save and clear</td><td>Save, then close what you saved (Undo for 60 s)</td></tr>
-        <tr><td>resume · resume dsa</td><td>Bring back the last one, or any by name</td></tr>
+        <tr><td>drop 3 · drop spotify</td><td>Leave something out</td></tr>
+        <tr><td>save as ai lab</td><td>Name it and save (or just “save”)</td></tr>
+        <tr><td>save and clear</td><td>Save, then close what you saved</td></tr>
+        <tr><td>resume · resume dsa</td><td>The last one, or any by name</td></tr>
         <tr><td>tick 1</td><td>Tick off a next step</td></tr>
-        <tr><td>pin this · start dsa</td><td>Keep a set-up you start every day</td></tr>
+        <tr><td>pin this · start dsa</td><td>A set-up you start every day</td></tr>
         <tr><td>undo</td><td>Take back the last resume, clear or delete</td></tr>
       </table>
     </div>
-    <figure>
-      <img class="shot" src="img/typing.png" alt="Typing resume shop-api: the bar previews the action and lists saved desks with their next step">
-      <figcaption>Your desks, each with the next thing to do. The bar shows what a command will do before it runs.</figcaption>
-    </figure>
+    <img src="img/s-desks.png" width="1088" height="483" loading="lazy" style="margin-top:110px;border-radius:6px;box-shadow:0 20px 40px -18px rgba(40,30,10,.3)"
+         alt="Your desks: AI lab, cybersec lab (a preset), DSA and portfolio site, each with its next step">
   </div>
 </section>
 
 <section>
-  <div class="wrap meaning">
-    <span class="big" aria-hidden="true">栞</span>
-    <div><h2>Why “Shiori”?</h2>
-      <p class="sub" style="margin:0">Shiori is Japanese for a bookmark: the ribbon you leave in a book so you can open it
-        again at the exact page. Closing your laptop shouldn't mean losing your place. Shiori is that ribbon, for
-        everything on your screen and everything in your head.</p></div>
+  <div class="wrap name-block">
+    <span class="kanji" aria-hidden="true">栞</span>
+    <p>Shiori is Japanese for a bookmark: the ribbon you leave in a book to open it again at the same page.
+      <span>Closing your laptop shouldn't mean losing your place. This is that ribbon, for everything on your
+      screen and everything in your head.</span></p>
   </div>
 </section>
 
 <section id="install">
-  <div class="wrap">
-    <h2>Install in a minute</h2>
-    <p class="sub">No admin rights and nothing to sign up for.</p>
-    <ol class="install">
-      <li><a href="https://github.com/kavyan256/shiori/releases/latest/download/Shiori-setup.zip">Download Shiori-setup.zip</a>,
-        right-click it and choose <b>Extract All</b></li>
-      <li>Double-click <b>Install Shiori.cmd</b>
-        <span>If Windows says “Windows protected your PC”, choose More info → Run anyway. Shiori isn't code-signed yet.</span></li>
-      <li>Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>S</kbd>. A short guide walks you through saving your first desk.
-        <span>For browser tabs: right-click the tray <b>S</b> → Set up browser tabs, and follow the three steps.</span></li>
-    </ol>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <div class="private">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
-      <div><h3>Your work stays on your PC</h3>
-        <p>Saved desks are plain files in <code>%LOCALAPPDATA%\Shiori</code>. No account, no cloud, no API key. The browser
-          extension only talks to Shiori on your own machine.</p></div>
+  <div class="wrap two">
+    <div>
+      <p class="kicker">Install</p>
+      <h2>A minute, no admin.</h2>
+      <ol class="install">
+        <li><span><a href="https://github.com/kavyan256/shiori/releases/latest/download/Shiori-setup.zip">Download Shiori-setup.zip</a>,
+          right-click it, <b>Extract All</b>.</span></li>
+        <li><span>Double-click <b>Install Shiori.cmd</b>.
+          <small>If Windows says “Windows protected your PC”: More info → Run anyway. Shiori isn't code-signed yet.</small></span></li>
+        <li><span>Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>S</kbd>. A short guide walks you through your first desk.
+          <small>Browser tabs: right-click the tray icon → Set up browser tabs. The hotkey can be changed there too.</small></span></li>
+      </ol>
+    </div>
+    <div>
+      <p class="kicker">Private</p>
+      <h2>Your desk stays yours.</h2>
+      <ul class="facts">
+        <li><b>No account, no cloud</b><span>Desks are plain files in <code>%LOCALAPPDATA%\Shiori</code>.</span></li>
+        <li><b>No AI service</b><span>Understanding what you say happens on your PC. Works offline.</span></li>
+        <li><b>Your choice on pictures</b><span>Desk pictures can be turned off, and the old ones deleted, from the tray.</span></li>
+      </ul>
     </div>
   </div>
 </section>
+</main>
 
 <footer>
   <div class="wrap">
     <span>Shiori · made by <a href="https://github.com/kavyan256">kavyan256</a> for the No Hands: Wispr Challenge</span>
-    <span><a href="https://github.com/kavyan256/shiori">Source on GitHub</a></span>
+    <span><a href="https://github.com/kavyan256/shiori">Source</a> · <a href="https://github.com/kavyan256/shiori/blob/main/LICENSE">MIT license</a></span>
   </div>
 </footer>
 </body>

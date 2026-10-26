@@ -14,9 +14,9 @@ your note to you, full screen, over the desk it just reopened.
 Built for the [No Hands: Wispr Challenge](https://www.wemakedevs.org/wispr). Every step works
 by voice with [Wispr Flow](https://wisprflow.ai); typing works the same.
 
-![Shiori's command bar, saving a coding desk](docs/img/draft.png)
+![Shiori's command bar, saving an AI lab desk](docs/img/s-draft.png)
 
-![After a resume: your note in big type over your dimmed desk](docs/img/overlay.jpg)
+![After a resume: your note in big type over your dimmed desk](docs/img/s-overlay.jpg)
 
 ## Download
 
