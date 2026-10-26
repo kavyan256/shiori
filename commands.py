@@ -18,6 +18,7 @@ Presets:
 
 Inside, a saved desk is still called a "park" (store.park, the "park" view): that was its first name.
 """
+import difflib
 import re
 
 import store
@@ -35,8 +36,12 @@ RESUME = re.compile(r"^(?:resume|retrieve|restore|back to|go back to|continue|sw
 LIST = re.compile(r"^(?:list|desks|disks|parks|parts|stages|(?:show|see|view)(?:ing)?(?: me)?(?: all)? (?:of )?(?:my |the )?"
                   r"(?:desks|disks|parks|parts|stages)|my (?:desks|disks|parks|parts|stages))\b", re.I)
 # Polite lead-ins people say before a command: "let's resume coding", "can you show my desks"
-LEAD_IN = re.compile(r"^(?:(?:ok(?:ay)?|so|hey|please|now|and|alright|let'?s|let us|can you|could you|"
-                     r"would you|i want to|i'd like to)[\s,]+)+", re.I)
+LEAD_IN = re.compile(r"^(?:(?:ok(?:ay)?|so|hey|please|now|and|alright|um+|uh+|erm?|hmm+|mm+|well|oh|"
+                     r"let'?s|let us|can you|could you|would you|i want to|i'd like to)[\s,]+)+", re.I)
+# Nothing meant: fillers, and the phrases speech-to-text invents from silence ("Thank you.", "Thanks for watching!")
+NOISE = re.compile(r"^(?:(?:um+|uh+|huh|uh-?huh|mhm+|mm-?hmm|erm?|hmm+|mm+|ah+|oh|okay|ok|so|yeah|and|like|you|bye|thanks|thank you|"
+                   r"thank you (?:so|very) much|thanks for watching|you're welcome|subtitles by[^.]*)[\s,.!?…]*)+$"
+                   r"|^[\s,.!?…\-]*$", re.I)
 VIEW = re.compile(r"^(?:view|show|see|look at|details (?:of|for))\s+(?:me\s+)?(?:the\s+)?(?:(?:park|desk)\s+)?(?P<name>.+)$", re.I)
 DELETE = re.compile(r"^(?:delete|trash|forget|remove)\s+(?:the\s+)?(?:(?:park|desk)\s+)?(?P<name>.+)$", re.I)
 PIN = re.compile(r"^pin(?:\s+(?:this|it|the park|the desk|that))?(?:\s+(?:park|desk|preset))?(?:\s+(?P<name>.+))?$", re.I)
@@ -52,12 +57,18 @@ UNDO = re.compile(r"^(?:undo|undo (?:that|it|this)|take (?:that|it) back)$", re.
 AND_CLEAR = re.compile(r"(?:^|[\s,.]+)(?:and\s+)?(?:clear|close)(?:\s+(?:it all|everything|them|up|the desk|my desk))?$", re.I)
 PARK_NAME_WORDS = re.compile(r"^(?:and\s+)?(?:save\s+(?:it\s+|this\s+)?)?(?:as|called|named)\s+", re.I)
 AND_SAVE = re.compile(r"[\s,.]+and\s+save(?:\s+it)?$", re.I)
-NO = re.compile(r"^(?:no|nope|nah|back|go back|not that)\b", re.I)
-YES = re.compile(r"^(?:yes|yeah|yep|yup|confirm|do it|delete it|sure|ok(?:ay)?)\b", re.I)
+NO = re.compile(r"^(?:n|no+|nope|nah|back|go back|not that|cancel|keep(?: it)?|wait|stop|don'?t)\b", re.I)
+YES = re.compile(r"^(?:y|ya|yah|yea|yeah|yes+|yep|yup|yas|confirm|do it|delete it|sure|ok(?:ay)?|go ahead|please do)\b", re.I)
+# "delete it" / "delete" again, answering "Delete dsa?"
+DELETE_AGAIN = re.compile(r"^(?:delete|remove|trash)(?:\s+(?:it|that|this))?\b", re.I)
 # --- while a draft park is open ---
 # longer phrases first, so "add back chrome" isn't read as add "back chrome"
 DROP = re.compile(r"^(?:leave out|don'?t save|drop|remove|skip|exclude|untick)\s+(?P<what>.+)$", re.I)
 KEEP = re.compile(r"^(?:add back|bring back|keep|add|include|tick)\s+(?P<what>.+)$", re.I)
+BARE_PICK = re.compile(r"^(?P<verb>leave out|don'?t save|drop|remove|skip|exclude|untick|add back|bring back|keep|add|include|tick)$", re.I)
+# words a sentence doesn't end on: "I was" or "fixing the" was cut off mid-thought
+UNFINISHED = {"was", "were", "is", "am", "are", "the", "a", "an", "to", "and", "or", "but", "of", "for", "with",
+              "my", "on", "in", "at", "as", "i", "we", "because"}
 SAVE = re.compile(r"^(?:(?:done|finished)[\s,.]+)?(?:save|name it|call it)"
                   r"(?:\s+(?:it|this|the park|park|(?:my |this |the )?(?:desk|disk)))?"
                   r"(?:\s+(?:as|called|named))?\s*(?P<name>.*)$", re.I | re.S)
@@ -94,6 +105,8 @@ def searchable(w):
 def pick_windows(what, windows):
     """'3', 'two and four', 'chrome', 'the music one' -> indexes of matching windows."""
     words = re.findall(r"[a-z0-9+#.]+", what.lower())
+    if {"all", "everything"} & set(words) and set(words) <= {"all", "everything", "them", "of", "it", "the", "whole", "lot"}:
+        return list(range(len(windows)))  # "drop all", "keep everything", "drop all of them"
 
     def numbers(tokens):
         return {int(t) - 1 for t in tokens if t.isdigit() and 0 < int(t) <= len(windows)}
@@ -147,6 +160,40 @@ def saved_name(said):
     return clean_name(parts[-1])
 
 
+# Words speech-to-text puts in place of a command ("rezoom shop api"). Fixed on the home screen only,
+# never inside a note: "Restart the server" in a note must stay a note.
+MISHEARD = {"rezoom": "resume", "resum": "resume", "rezume": "resume", "resoom": "resume", "re-zoom": "resume",
+            "résumé": "resume", "resumé": "resume", "safe": "save", "shoe": "show"}
+COMMAND_WORDS = ["resume", "view", "delete", "start", "save", "show", "unpin", "undo", "help"]
+
+
+def fix_command_word(text):
+    """'rezoom shop api' -> 'resume shop api', 'delte dsa' -> 'delete dsa'; unchanged if nothing is close."""
+    first, _, rest = text.strip().partition(" ")
+    word = first.lower()
+    close = difflib.get_close_matches(word, COMMAND_WORDS, n=1, cutoff=0.8)
+    fixed = MISHEARD.get(word) or (close[0] if close else None)
+    if not fixed or fixed == word or (not rest and fixed.startswith(word)):
+        return text  # "resu" alone is a half word, not a typo: offer choices, never run "resume"
+    return f"{fixed} {rest}".strip()
+
+
+def without_repeat(text):
+    """'save my desk save my desk' -> 'save my desk': a phrase pasted or said twice in a row counts once."""
+    words = text.split()
+    half = len(words) // 2
+    plain = [w.strip(".,!?;:").lower() for w in words]
+    if half and len(words) % 2 == 0 and plain[:half] == plain[half:]:
+        return " ".join(words[:half]).rstrip(".,!?;:")
+    return text
+
+
+def cut_off(note):
+    """A note that stops mid-thought ('I was', 'drop', 'fixing the'): probably Enter, or Wispr, came too early."""
+    words = note.rstrip(" .,!?…").split()
+    return not words or len(words) < 2 or (len(words) < 6 and words[-1].lower() in UNFINISHED)
+
+
 def split_clear(text):
     """'save as coding and clear' -> ('save as coding', True)."""
     stripped = AND_CLEAR.sub("", text)
@@ -157,7 +204,9 @@ def parse(text):
     """Commands that work any time.
     -> ('park', name or '', note, clear) | ('resume', name or '') | ('view', name) | ('delete', name)
        | ('pin', name or '') | ('unpin', name) | ('start', name) | ('undo',) | ('list',) | ('help',)"""
-    text = LEAD_IN.sub("", text.strip()).rstrip(".!?")
+    text = without_repeat(LEAD_IN.sub("", text.strip()).rstrip(".!?"))
+    if NOISE.match(text):
+        return ("noise",)
     if UNDO.match(text):
         return ("undo",)
     if HIDE_GUIDE.match(text):
@@ -198,9 +247,13 @@ def parse(text):
 def parse_draft(text):
     """Commands while a draft park is open; anything unrecognised is the note.
     -> ('drop'|'keep', what) | ('save', name or '') | ('cancel',) | ('note', text) | any parse() command"""
-    said = LEAD_IN.sub("", text.strip()).rstrip(".!?")
+    said = without_repeat(LEAD_IN.sub("", text.strip()).rstrip(".!?"))
+    if NOISE.match(said):
+        return ("noise",)
     if UNDO.match(said):
         return ("undo",)
+    if m := BARE_PICK.match(said):
+        return ("which", m["verb"].lower())
     if m := DROP.match(said):
         return ("drop", m["what"])
     if m := KEEP.match(said):
@@ -209,13 +262,15 @@ def parse_draft(text):
     if clear and not short:
         return ("save", "", True)  # just "clear"
     if m := SAVE.match(short):
+        if not clean_name(m["name"]) and re.search(r"\b(?:as|called|named|name it|call it)$", short, re.I):
+            return ("save_ask", clear)  # "save as" and then nothing: ask for the name, don't guess
         return ("save", saved_name(m["name"]), clear)
     if DONE.match(short):
         return ("save", "", clear)
     if CANCEL.match(said):
         return ("cancel",)
     if m := NOTE.match(text.strip()):
-        return ("note", m["note"])
+        return ("note", m["note"], True)  # "note: …" said on purpose: kept even if short
     command = parse(text)
     if command[0] in ("list", "resume", "view", "start"):
         return command
@@ -223,4 +278,4 @@ def parse_draft(text):
         return ("pin_draft",)  # can't pin what isn't saved yet
     if command[0] == "park" and not command[2]:
         return ("park", command[1])  # "park" again: back to the draft; "park dsa": it's for dsa
-    return ("note", text.strip())
+    return ("note", without_repeat(text.strip()), False)

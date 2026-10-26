@@ -238,7 +238,7 @@
 <div class="wrap" id="wrap">
   <header>
     <div class="logo">S</div><div class="brand">Shiori</div>
-    <div id="status">Hold <kbd>Ctrl</kbd><kbd>Win</kbd> to speak · or type</div>
+    <div id="status">Hold your <kbd>Wispr key</kbd> to speak · or type</div>
   </header>
   <div class="ask" id="ask" hidden></div>
   <div class="field" id="field">
@@ -257,7 +257,7 @@ let state = { view: "" }, autoRun = null, busy = false, cursor = -1;
 let lastKeep = new Map();        // row index -> ticked, to animate only rows that changed
 const collapsed = new Set();     // group labels you folded away
 let parkNames = [], tabCycle = null;
-const STATUS_IDLE = 'Hold <kbd>Ctrl</kbd><kbd>Win</kbd> to speak · or type';
+const STATUS_IDLE = 'Hold your <kbd>Wispr key</kbd> to speak · or type';
 
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const hue = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
@@ -341,7 +341,7 @@ function noteBlock(note, steps, emptyText = "No note", gitCues = [], opts = {}) 
   steps = steps || [];
   if (opts.voice && !note && !steps.length) return `<div class="note voice"><span class="mic">${MIC}</span><div>
       <div class="vtitle">What were you doing, and what's next?</div>
-      <div class="vhow">Hold <kbd>Ctrl</kbd><kbd>Win</kbd> and say it, or type it above</div></div></div>${cueBlock(gitCues)}`;
+      <div class="vhow">Hold your <kbd>Wispr key</kbd> and say it, or type it above</div></div></div>${cueBlock(gitCues)}`;
   const done = new Set(opts.done || []);
   const label = opts.voice ? `<div class="nlabel">Your note · say a new one to replace it</div>` : "";
   const lines = note ? `<p>${esc(note)}</p>` : `<p class="empty">${esc(emptyText)}</p>`;
@@ -429,7 +429,7 @@ function guideCard(progress) {
     <div class="guide-bar"><i style="width:${(done / 3) * 100}%"></i></div>
     ${GUIDE.map(([key, title, how], i) => `<div class="gstep ${progress[key] ? "done" : ""} ${i === next ? "next" : ""}" style="--i:${i}">
       <span class="check">${CHECK}</span><span class="gtitle">${title}</span><span class="ghow">${how}</span></div>`).join("")}
-    <div class="gfoot">Typing works too, no Wispr needed. With Wispr Flow: hold <kbd>Ctrl</kbd><kbd>Win</kbd> and speak.</div>
+    <div class="gfoot">Typing works too, no Wispr needed. With Wispr Flow: hold your <kbd>Wispr key</kbd> and speak.</div>
   </div>`;
 }
 
@@ -511,6 +511,7 @@ const views = {
       s.skipped.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : "";
     const verb = { Started: "Started", Reopened: "Reopened" }[s.verb] || "Resuming";
     return `<section><h2>${verb} ${esc(s.name)} <span class="sub">${started ? "last saved" : "saved"} ${esc(s.ago)}</span></h2>
+      ${s.message ? `<div class="msg" style="margin:-2px 0 8px">${esc(s.message)}</div>` : ""}
       ${noteBlock(s.note, s.steps, "No note", s.cues, { tickable: true, done: s.done })}
       <div class="label">${s.opened.length ? "Opening" : "Nothing to open"}</div>
       <div class="pills stagger">${pills || `<span class="meta">It's all already here.</span>`}</div>${skipped}
@@ -518,7 +519,7 @@ const views = {
   },
 
   namecheck(s) {
-    return `<section><h2>Save as “${esc(s.name)}”?</h2>
+    return `<section><h2>Save as “${esc(s.name)}”?</h2>${s.message ? `<div class="msg">${esc(s.message)}</div>` : ""}
       <div class="foot" style="margin-top:2px">That's a long name, maybe part of your note. Say a shorter name, or pick one:</div>
       <div class="actions">${s.suggested ? `<button class="primary" data-say="${esc(s.suggested)}">Save as ${esc(s.suggested)}</button>` : ""}
         <button data-say="yes">Keep the long name</button><button data-say="back">Back</button></div></section>`;
@@ -611,13 +612,19 @@ function complete() {
 }
 
 // ---- input ---------------------------------------------------------------------------
+// A phrase that clearly isn't finished ("save my", "view", "save as") waits longer, in case the rest
+// is still coming: Wispr can paste in two parts if you pause mid-sentence.
+const UNFINISHED_END = /(?:^|\s)(?:as|my|the|to|a|an|and|called|named|view|delete|start|drop|keep|show)$/i;
+const WAIT_FOR_REST_MS = 3000;
 function startCountdown() {
   clearTimeout(autoRun);
+  const wait = UNFINISHED_END.test(q.value.trim()) ? WAIT_FOR_REST_MS : AUTO_RUN_MS;
+  field.style.setProperty("--countdown", wait + "ms");
   field.classList.remove("counting");
   void field.offsetWidth;  // restart the line's transition
   field.classList.add("counting");
-  setStatus("Running in a moment · any key to stop", true);
-  autoRun = setTimeout(submit, AUTO_RUN_MS);
+  setStatus(wait > AUTO_RUN_MS ? "Waiting for the rest · Enter to run now" : "Running in a moment · any key to stop", true);
+  autoRun = setTimeout(submit, wait);
 }
 function stopCountdown() {
   if (!autoRun) return;
@@ -627,14 +634,28 @@ function stopCountdown() {
   setStatus(STATUS_IDLE);
 }
 
+let queued = null;  // said while the last command was still running: it runs next
 async function submit(text = q.value) {
   stopCountdown();
   field.classList.remove("counting");
-  if (busy) return;
+  if (busy) {
+    if (text.trim()) {
+      queued = text;
+      q.value = "";
+      sizeInput();
+      setStatus(`Busy · next: ${esc(text.trim().slice(0, 40))}`, true);
+    }
+    return;
+  }
   q.value = "";
   sizeInput();
   updateChip();
   render(await call("submit", text));
+  if (queued) {
+    const next = queued;
+    queued = null;
+    submit(next);
+  }
 }
 
 function sizeInput() { q.style.height = "46px"; q.style.height = Math.min(q.scrollHeight + 2, 110) + "px"; }
@@ -648,7 +669,10 @@ q.addEventListener("paste", () => {
 });
 q.addEventListener("keydown", e => {
   const isPaste = e.ctrlKey && e.key.toLowerCase() === "v";
-  if (!["Control", "Enter", "Tab"].includes(e.key) && !isPaste) stopCountdown();
+  if (!["Control", "Enter", "Tab"].includes(e.key) && !isPaste && autoRun) {
+    stopCountdown();
+    setStatus("Stopped · press Enter to run", true);
+  }
   if (e.key === "Escape") { e.preventDefault(); pywebview.api.hide(); return; }
   if (e.key === "Tab") { e.preventDefault(); complete(); return; }  // Tab never leaves the box
   const empty = !q.value.trim();

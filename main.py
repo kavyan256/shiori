@@ -180,7 +180,7 @@ def hide_if_left():
     except psutil.Error:
         front_app = ""
     if "wispr" in front_app or "flow" in front_app:
-        return  # Wispr's own window while you hold Ctrl+Win: it pastes back into the bar
+        return  # Wispr's own window while you hold your Wispr key: it pastes back into the bar
     log.info("hidden: you clicked into %s", front_app or "another window")
     window.hide()
 

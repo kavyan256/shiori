@@ -12,6 +12,7 @@ Views:
   message  help / not found                    {"view", "title", "lines"}
 """
 import difflib
+import re
 import time
 
 import browser
@@ -24,7 +25,8 @@ import naming
 import office
 import onboarding
 from capture import list_windows
-from commands import NO, YES, app_name, clean_name, parse, parse_draft, pick_windows
+from commands import (DELETE_AGAIN, NO, YES, app_name, clean_name, cut_off, fix_command_word, parse, parse_draft,
+                      pick_windows)
 from items import current_items, kind, tab_items
 from notes import split_note
 from presets import preselect, profile, signatures
@@ -58,11 +60,16 @@ class Controller:
         text = text.strip()
         if self.confirm_delete:
             name, self.confirm_delete = self.confirm_delete, None
-            if YES.match(text):
+            if YES.match(text) or DELETE_AGAIN.match(text):
                 trashed = store.delete(name)
                 self.remember("delete", name, trashed=str(trashed))
                 return self.with_undo(self.home(f"Deleted “{name}”."))
-            return self.home(f"Kept “{name}”.")
+            if not text or NO.match(text):
+                return self.home(f"Kept “{name}”.")
+            if parse(text)[0] not in ("help", "noise"):
+                return self.handle(text)  # you moved on to something else: nothing is deleted
+            self.confirm_delete = name  # unclear: ask again rather than guess
+            return {**self.ask_delete(name), "lines": [f"Didn't catch that. Say “yes” to delete “{name}”, or “no” to keep it."]}
         if self.checking_name:
             return self.answer_name_check(text)
         if self.asking_name:
@@ -76,15 +83,25 @@ class Controller:
         if self.draft:
             command = parse_draft(text)
             self.draft["at"] = time.time()
+            if command[0] == "which":
+                return self.draft_view(f"{command[1].capitalize()} which? Say a number or a name, like "
+                                       f"“{command[1]} 3” or “{command[1]} spotify”.")
+            if command[0] == "noise":
+                return self.draft_view("Didn't catch that. Nothing changed.")
+            if command[0] == "undo":
+                return self.undo_draft()
             if command[0] in ("drop", "keep"):
                 return self.choose(command[1], keep=command[0] == "keep")
             if command[0] == "save":
                 return self.save(command[1], clear_after=command[2])
+            if command[0] == "save_ask":
+                self.draft["clear"] = self.draft.get("clear") or command[1]
+                return self.ask_name()
             if command[0] == "cancel":
                 self.draft = None
                 return self.home("Cancelled. Nothing was saved.")
             if command[0] == "note":
-                return self.set_note(command[1])
+                return self.set_note(command[1], on_purpose=command[2])
             if command[0] == "park":
                 return self.rename_draft(command[1]) if command[1] else self.draft_view("Back to your unsaved desk.")
             if command[0] == "pin_draft":
@@ -93,6 +110,8 @@ class Controller:
             command = parse(text)
             if command[0] == "park":
                 return self.start_draft(command[1], command[2], clear_after=command[3])
+            if command[0] == "noise":
+                return self.home("Didn't catch that. Say “help” to see what you can say.")
             if command[0] == "save_first":
                 return self.home("Say “save my desk” first: it gathers what's open. Then your note, then “save as …”.")
             if command[0] == "delete":
@@ -117,7 +136,40 @@ class Controller:
             return self.tick_step(command[1], command[2])
         if command[0] == "view":
             return self.view(command[1])
-        return self.help()
+        return self.not_understood(text)
+
+    def not_understood(self, text):
+        """Not a command. Before the help page, try: a misheard command word ('rezoom shop api'),
+        something that only works while saving ('drop 3' on the home screen), or a half word
+        ('res', Enter pressed early), offered as the commands it could start."""
+        if not self.draft:
+            fixed = fix_command_word(text)
+            if fixed != text and parse(fixed)[0] not in ("help", "noise"):
+                return self.handle(fixed)
+            if re.match(r"(?:drop|keep|remove|add|skip|untick|leave out|cancel|discard)\b", text, re.I):
+                return self.home("Nothing is being saved right now. Say “save my desk” first.")
+        return self.did_you_mean(text) or self.help()
+
+    def did_you_mean(self, text):
+        """'res', 's', 'view' (no name yet): the commands those letters start, as clickable lines."""
+        said = text.strip().lower().rstrip(".")
+        if not said or " " in said or len(said) > 8:
+            return None
+        names = [s["name"] for s in store.list_stages()]
+        presets = [s["name"] for s in store.list_stages() if s.get("pinned")] or names
+        options = {
+            "save": [("Save my desk", "save my desk")],
+            "show": [("Show my desks", "show my desks")],
+            "resume": ([(f"Resume {names[0]}  (the last one)", "resume")] + [(f"Resume {n}", f"resume {n}") for n in names[1:4]]
+                       if names else []),
+            "view": [(f"View {n}", f"view {n}") for n in names[:4]],
+            "delete": [(f"Delete {n}", f"delete {n}") for n in names[:4]],
+            "start": [(f"Start {n}", f"start {n}") for n in presets[:3]],
+            "undo": [("Undo", "undo")],
+        }
+        lines = [{"text": label, "say": say} for verb, choices in options.items() if verb.startswith(said)
+                 for label, say in choices]
+        return {"view": "message", "title": "Did you mean…?", "lines": lines[:8]} if lines else None
 
     # --- building a park ------------------------------------------------------------
     def start_draft(self, name="", note="", clear_after=False):
@@ -169,14 +221,37 @@ class Controller:
         self.draft["items"] = others + new_tabs
         return self.draft_view(f"{browser_name.title()} tabs added.")
 
-    def set_note(self, text):
+    def set_note(self, text, on_purpose=True):
+        """Your note. A scrap that stops mid-thought ('I was', 'dr') never replaces it: that's
+        Enter, or Wispr, cutting you off. A real new note does, and "undo" brings the old one back."""
+        if not on_purpose and cut_off(text):
+            return self.draft_view(f"“{text}” sounds cut off, so your note is unchanged. Say the whole note again.")
+        replacing = bool(self.draft["note"] or self.draft["steps"])
+        self.remember_draft()
         split = split_note(text)
         self.draft["note"], self.draft["steps"] = split["brain_dump"], split["next_steps"]
-        return self.draft_view("Note added. Say a new one to replace it.")
+        return self.draft_view("Note replaced. Say “undo” to bring the old one back." if replacing
+                               else "Note added. Say a new one to replace it.")
+
+    # --- undo while saving a desk: takes back your last change to it, nothing outside it ---
+    def remember_draft(self):
+        d = self.draft
+        d.setdefault("history", []).append(([i["keep"] for i in d["items"]], d["note"], list(d["steps"])))
+        del d["history"][:-20]
+
+    def undo_draft(self):
+        history = self.draft.get("history")
+        if not history:
+            return self.draft_view("Nothing to undo in this desk yet.")
+        keeps, self.draft["note"], self.draft["steps"] = history.pop()
+        for item, keep in zip(self.draft["items"], keeps):
+            item["keep"] = keep
+        return self.draft_view("Undone.")
 
     def toggle(self, index):
         if not self.draft:
             return self.home()
+        self.remember_draft()
         item = self.draft["items"][index]
         item["keep"] = not item["keep"]
         return self.draft_view()
@@ -185,6 +260,7 @@ class Controller:
         """A group's checkbox: tick or untick all its rows at once."""
         if not self.draft:
             return self.home()
+        self.remember_draft()
         for i in indexes:
             self.draft["items"][i]["keep"] = keep
         return self.draft_view()
@@ -198,6 +274,7 @@ class Controller:
         picked = pick_windows(what, self.draft["items"])
         if not picked:
             return self.draft_view(f"Didn't find “{what}”. Say a number from the list.")
+        self.remember_draft()
         for i in picked:
             self.draft["items"][i]["keep"] = keep
         return self.draft_view(f"{'Kept' if keep else 'Dropped'} {', '.join(str(i + 1) for i in picked)}")
@@ -208,21 +285,25 @@ class Controller:
                 "suggested": self.suggested_name() if self.draft else ""}
 
     # --- long names: "save it as I was fixing the login bug" shouldn't quietly become a name ---
-    def check_name(self, name, clear_after):
+    def check_name(self, name, clear_after, message=""):
         self.checking_name = {"name": name, "clear": clear_after}
-        return {"view": "namecheck", "name": name, "suggested": self.suggested_name()}
+        return {"view": "namecheck", "name": name, "suggested": self.suggested_name(), "message": message}
 
     def answer_name_check(self, text):
         """'yes' keeps the long name; 'no' goes back to the park; anything else is the new name."""
         pending, self.checking_name = self.checking_name, None
         if not self.draft:
             return self.home()
-        if YES.match(text):
+        if parse_draft(text)[0] == "noise":
+            return self.check_name(pending["name"], pending["clear"], "Didn't catch that. Say a shorter name, “yes”, or “back”.")
+        if YES.match(text) or re.match(r"keep\b", text, re.I):  # "keep it": keep the long name
             return self.save(pending["name"], pending["clear"], checked=True)
         if not text or NO.match(text):
             return self.draft_view("Not saved yet. Say “save as” and a short name.")
         command = parse_draft(text)  # "save as dsa" or just "dsa"
         name = (command[1] or self.suggested_name()) if command[0] == "save" else clean_name(text)
+        if len(store.slug(name)) < 2:
+            return self.check_name(pending["name"], pending["clear"], f"“{name}” is too short for a name. Say it again.")
         return self.save(name, pending["clear"])
 
     def suggested_name(self):
@@ -298,6 +379,7 @@ class Controller:
 
     # --- your parks -------------------------------------------------------------------
     def home(self, message=""):
+        self.viewing = None  # no desk on screen any more: "pin this" / "tick 1" need one
         parks = []
         for s in store.list_stages():
             last = s["snapshots"][-1]
@@ -311,10 +393,23 @@ class Controller:
         return {"view": "home", "parks": parks, "draft": bool(self.draft), "message": message,
                 "guide": onboarding.guide()}
 
-    def view(self, spoken, message=""):
+    def desk_named(self, spoken, verb):
+        """(name, None), or (None, a view to show instead). A scrap of a name ('resume s': Enter or
+        Wispr came too early) never picks a desk on its own: it lists the ones it could be."""
+        names = [s["name"] for s in store.list_stages()]
+        letters = re.sub(r"[^a-z0-9]", "", spoken.lower())
+        exact = any(store.slug(n) == store.slug(spoken) for n in names)
+        if len(letters) < 3 and not exact:
+            fits = [n for n in names if store.slug(n).replace("-", "").startswith(letters)] or names
+            lines = [{"text": f"{verb.capitalize()} {n}", "say": f"{verb} {n}", "park": True} for n in fits[:6]]
+            return None, {"view": "message", "title": f"Which desk did you mean by “{spoken}”?", "lines": lines}
         name = store.find(spoken)
-        if not name:
-            return self.not_found(spoken)
+        return (name, None) if name else (None, self.not_found(spoken))
+
+    def view(self, spoken, message=""):
+        name, instead = self.desk_named(spoken, "view")
+        if instead:
+            return instead
         self.viewing = name
         stage = store.load(name)
         last = stage["snapshots"][-1]
@@ -335,16 +430,26 @@ class Controller:
             if not parks:
                 return self.home("No desks saved yet. Say “save my desk” to save what's open.")
             spoken = parks[0]["name"]
-        name = store.find(spoken)
-        if not name:
-            return self.not_found(spoken)
+        notes = []
+        names = [s["name"] for s in store.list_stages()]
+        parts = [p.strip() for p in re.split(r"\s+(?:and|&)\s+|\s*,\s*", spoken) if p.strip()]
+        if len(parts) > 1 and not any(store.slug(n) == store.slug(spoken) for n in names):
+            asked = [n for n in dict.fromkeys(map(store.find, parts)) if n]
+            if len(asked) > 1:  # "resume shop api and dsa": one desk at a time
+                spoken = asked[0]
+                notes.append(f"One desk at a time: this is {asked[0]}. Say “resume {asked[1]}” for the next.")
+        name, instead = self.desk_named(spoken, "resume")
+        if instead:
+            return instead
+        if self.draft:
+            notes.append("Your unsaved desk is kept: say “save my desk” to go back to it.")
         snap = store.latest(name)
         self.viewing = name  # so "tick 1" works on the note you're reading
         self.remember_resume(name, snap["windows"])
         opened, skipped = restore.reopen(snap, name)
         return self.with_undo({"view": "resume", "verb": "Resumed", "name": name, "ago": store.ago(snap["parked_at"]),
                 "note": snap["brain_dump"], "steps": snap["next_steps"], "done": snap.get("done", []),
-                "opened": opened, "skipped": skipped, "shot": snap.get("shot", ""),
+                "opened": opened, "skipped": skipped, "shot": snap.get("shot", ""), "message": " ".join(notes),
                 "cues": cue_rows(cues.compare(snap.get("cues", [])))})
 
     # --- next steps: tick them off as you get through them -------------------------------
@@ -382,25 +487,28 @@ class Controller:
     def pin(self, spoken):
         """'pin this' (the park on screen) or 'pin dsa': its newest kept items become the preset."""
         name = store.find(spoken) if spoken else self.viewing
+        if not name and not spoken:
+            names = [s["name"] for s in store.list_stages()]
+            return {"view": "message", "title": "Pin which desk?",
+                    "lines": [{"text": f"Pin {n}", "say": f"pin {n}", "park": True} for n in names[:6]] or ["No desks saved yet."]}
         if not name:
-            return self.not_found(spoken) if spoken else {
-                "view": "message", "title": "Which desk?", "lines": ["Open one first (“view dsa”), or say “pin dsa”."]}
+            return self.not_found(spoken)
         items = [i for i in store.latest(name)["windows"] if i.get("keep", True)]
         store.set_pins(name, items)
         return self.view(name, f"📌 Pinned {len(items)} items. Say “start {name}” any time to open them.")
 
     def unpin(self, spoken):
-        name = store.find(spoken)
-        if not name:
-            return self.not_found(spoken)
+        name, instead = self.desk_named(spoken, "unpin")
+        if instead:
+            return instead
         store.set_pins(name, None)
         return self.view(name, "Unpinned. It's a plain desk again; its versions are untouched.")
 
     def start(self, spoken):
         """Open a preset's pinned items, with the newest park's note on top."""
-        name = store.find(spoken)
-        if not name:
-            return self.not_found(spoken)
+        name, instead = self.desk_named(spoken, "start")
+        if instead:
+            return instead
         stage = store.load(name)
         if not stage.get("pinned"):  # not a preset: do the closest useful thing
             view = self.resume(name)
@@ -415,9 +523,9 @@ class Controller:
                 "cues": cue_rows(cues.compare(last.get("cues", [])))})
 
     def ask_delete(self, spoken):
-        name = store.find(spoken)
-        if not name:
-            return self.not_found(spoken)
+        name, instead = self.desk_named(spoken, "delete")
+        if instead:
+            return instead
         versions = len(store.load(name)["snapshots"])
         self.confirm_delete = name
         return {"view": "confirm", "name": name, "title": f"Delete “{name}”?",
