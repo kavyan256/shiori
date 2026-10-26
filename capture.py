@@ -209,7 +209,7 @@ def list_windows():
         if pid == os.getpid():
             continue  # Shiori's own popup isn't part of your work
         app, exe = process_of(hwnd)
-        if app in ("python.exe", "pythonw.exe", "shiori.exe", "stage.exe") and win32gui.GetWindowText(hwnd) in ("Shiori", "Stage"):
+        if app in ("python.exe", "pythonw.exe", "shiori.exe", "stage.exe") and win32gui.GetWindowText(hwnd) in ("Shiori", "Shiori note", "Stage"):
             continue  # another copy of Shiori, e.g. its "already running" message
         win = Window(
             hwnd=hwnd,

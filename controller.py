@@ -16,6 +16,7 @@ import time
 
 import browser
 import cues
+import desk
 import restore
 import store
 import clear
@@ -41,6 +42,7 @@ class Controller:
         self.checking_name = None   # a long name waiting for "yes": {"name", "clear"}
         self.viewing = None         # the park on screen, for "pin this"
         self.last_action = None     # what "undo" would take back: {"kind", "name", "at", ...}
+        self.desk_shot = None       # the screen as it was when the bar last opened, kept with the next save
 
     def opened(self):
         """The bar just opened: carry on with a draft if there is one, else show your parks."""
@@ -80,11 +82,11 @@ class Controller:
                 return self.save(command[1], clear_after=command[2])
             if command[0] == "cancel":
                 self.draft = None
-                return self.home("Park cancelled. Nothing was saved.")
+                return self.home("Cancelled. Nothing was saved.")
             if command[0] == "note":
                 return self.set_note(command[1])
             if command[0] == "park":
-                return self.rename_draft(command[1]) if command[1] else self.draft_view("Back to your unsaved park.")
+                return self.rename_draft(command[1]) if command[1] else self.draft_view("Back to your unsaved desk.")
             if command[0] == "pin_draft":
                 return self.draft_view("Save it first (“save as dsa”), then say “pin this”.")
         else:
@@ -92,7 +94,7 @@ class Controller:
             if command[0] == "park":
                 return self.start_draft(command[1], command[2], clear_after=command[3])
             if command[0] == "save_first":
-                return self.home("Say “park” first: it gathers what's open. Then your note, then “save as …”.")
+                return self.home("Say “save my desk” first: it gathers what's open. Then your note, then “save as …”.")
             if command[0] == "delete":
                 return self.ask_delete(command[1])
             if command[0] == "pin":
@@ -144,9 +146,9 @@ class Controller:
         existing = store.load(name)
         self.draft["name"] = existing["name"] if existing else name
         if not existing:
-            return self.draft_view(f"This park will be saved as {name}.")
+            return self.draft_view(f"This desk will be saved as {name}.")
         ticked = preselect(self.draft["items"], existing)
-        return self.draft_view(f"Now parking {existing['name']}: ticked the {ticked} that belong to it.")
+        return self.draft_view(f"Now saving {existing['name']}: ticked the {ticked} that belong to it.")
 
     def tabs_arrived(self, browser_name):
         """A browser reported after the draft was made (its extension woke up late):
@@ -202,7 +204,7 @@ class Controller:
 
     def ask_name(self):
         self.asking_name = True
-        return {"view": "ask", "prompt": "What should this park be called?",
+        return {"view": "ask", "prompt": "What should this desk be called?",
                 "suggested": self.suggested_name() if self.draft else ""}
 
     # --- long names: "save it as I was fixing the login bug" shouldn't quietly become a name ---
@@ -238,7 +240,8 @@ class Controller:
             return self.check_name(name, clear_after)
         name = existing["name"] if existing else name
         draft, self.draft = self.draft, None
-        store.park(name, draft["items"], draft["note"], draft["steps"], ticked_cues(draft))
+        store.park(name, draft["items"], draft["note"], draft["steps"], ticked_cues(draft),
+                   shot=desk.keep(self.desk_shot, name))
         onboarding.mark("saved")
         kept = sum(1 for i in draft["items"] if i["keep"])
         versions = len(store.load(name)["snapshots"])
@@ -270,7 +273,7 @@ class Controller:
         action, self.last_action = self.last_action, None
         if not action or time.time() - action["at"] > UNDO_FOR:
             return {"view": "message", "title": "Nothing to undo",
-                    "lines": ["Undo works for a minute after a resume, a park-and-clear, or a delete."]}
+                    "lines": ["Undo works for a minute after a resume, a save-and-clear, or a delete."]}
         name = action["name"]
         if action["kind"] == "resume":
             closed = clear.undo_resume(set(action["before"]), set(action["apps"]), name, action["files"])
@@ -282,7 +285,7 @@ class Controller:
         if action["kind"] == "delete":
             if store.undelete(action["trashed"], name):
                 return self.view(name, "Back from the trash.")
-            return {"view": "message", "title": "Couldn't undo", "lines": [f"A park called “{name}” exists again."]}
+            return {"view": "message", "title": "Couldn't undo", "lines": [f"A desk called “{name}” exists again."]}
         return self.help()
 
     def draft_view(self, message=""):
@@ -330,7 +333,7 @@ class Controller:
         if not spoken:  # "resume" alone: the newest park
             parks = store.list_stages()
             if not parks:
-                return self.home("Nothing parked yet. Say “park” to save what's open.")
+                return self.home("No desks saved yet. Say “save my desk” to save what's open.")
             spoken = parks[0]["name"]
         name = store.find(spoken)
         if not name:
@@ -341,7 +344,7 @@ class Controller:
         opened, skipped = restore.reopen(snap, name)
         return self.with_undo({"view": "resume", "verb": "Resumed", "name": name, "ago": store.ago(snap["parked_at"]),
                 "note": snap["brain_dump"], "steps": snap["next_steps"], "done": snap.get("done", []),
-                "opened": opened, "skipped": skipped,
+                "opened": opened, "skipped": skipped, "shot": snap.get("shot", ""),
                 "cues": cue_rows(cues.compare(snap.get("cues", [])))})
 
     # --- next steps: tick them off as you get through them -------------------------------
@@ -349,10 +352,10 @@ class Controller:
         """Voice: "tick 1" / "untick 1" on the park on screen."""
         name = self.viewing
         if not name or not store.load(name):
-            return self.home("Open a park first (“view coding”), then “tick 1”.")
+            return self.home("Open a desk first (“view coding”), then “tick 1”.")
         steps = store.latest(name)["next_steps"]
         if not 0 <= index < len(steps):
-            return self.view(name, f"There's no step {index + 1}." if steps else "This park has no next steps.")
+            return self.view(name, f"There's no step {index + 1}." if steps else "This desk has no next steps.")
         store.set_step(name, index, done)
         return self.view(name, f"{'Ticked' if done else 'Unticked'} “{steps[index]}”.")
 
@@ -381,7 +384,7 @@ class Controller:
         name = store.find(spoken) if spoken else self.viewing
         if not name:
             return self.not_found(spoken) if spoken else {
-                "view": "message", "title": "Which park?", "lines": ["Open one first (“view dsa”), or say “pin dsa”."]}
+                "view": "message", "title": "Which desk?", "lines": ["Open one first (“view dsa”), or say “pin dsa”."]}
         items = [i for i in store.latest(name)["windows"] if i.get("keep", True)]
         store.set_pins(name, items)
         return self.view(name, f"📌 Pinned {len(items)} items. Say “start {name}” any time to open them.")
@@ -391,7 +394,7 @@ class Controller:
         if not name:
             return self.not_found(spoken)
         store.set_pins(name, None)
-        return self.view(name, "Unpinned. It's a plain park again; its versions are untouched.")
+        return self.view(name, "Unpinned. It's a plain desk again; its versions are untouched.")
 
     def start(self, spoken):
         """Open a preset's pinned items, with the newest park's note on top."""
@@ -401,7 +404,7 @@ class Controller:
         stage = store.load(name)
         if not stage.get("pinned"):  # not a preset: do the closest useful thing
             view = self.resume(name)
-            view["skipped"] = [f"{name} isn't pinned yet, so its last park was resumed. "
+            view["skipped"] = [f"{name} isn't pinned yet, so its last saved desk was resumed. "
                                f"Say “pin {name}” to make it a preset."] + view["skipped"]
             return view
         last = stage["snapshots"][-1]
@@ -425,13 +428,13 @@ class Controller:
         """Not a dead end: the closest name as a question, and every park one click away."""
         names = [s["name"] for s in store.list_stages()]
         if not names:
-            return {"view": "message", "title": f"No park called “{spoken}”",
-                    "lines": [{"text": "Nothing is parked yet. Park what's open", "say": "park"}]}
+            return {"view": "message", "title": f"No desk called “{spoken}”",
+                    "lines": [{"text": "No desks saved yet. Save my desk", "say": "save my desk"}]}
         close = difflib.get_close_matches(spoken.lower(), [n.lower() for n in names], n=1, cutoff=0.4)
         guess = next((n for n in names if close and n.lower() == close[0]), None)
         lines = [{"text": f"Did you mean “{guess}”? View it", "say": f"view {guess}"}] if guess else []
         lines += [{"text": n, "say": f"view {n}", "park": True} for n in names if n != guess][:6]
-        return {"view": "message", "title": f"No park called “{spoken}”", "lines": lines}
+        return {"view": "message", "title": f"No desk called “{spoken}”", "lines": lines}
 
     def help(self):
         """Every command as something you can click; examples use your own park names."""
@@ -439,13 +442,13 @@ class Controller:
         example = names[0] if names else "coding"
         known = bool(names)
         return {"view": "message", "title": "Try one of these · click or say it",
-                "lines": [{"text": "Park → your note → save as coding", "say": "park"},
+                "lines": [{"text": "Save my desk → your note → save as coding", "say": "save my desk"},
                           {"text": "Resume (the last one)", "say": "resume"} if known else "Resume (the last one)",
                           {"text": f"Resume {example}", "say": f"resume {example}"} if known else f"Resume {example}",
-                          {"text": "Show my parks", "say": "show my parks"},
+                          {"text": "Show my desks", "say": "show my desks"},
                           {"text": f"View {example}", "say": f"view {example}"} if known else f"View {example}",
                           "Pin this · Start dsa",
-                          "Park dsa  (ticks dsa's things for you)",
+                          "Save my desk as dsa  (ticks dsa's things for you)",
                           f"Delete {example}"]}
 
 

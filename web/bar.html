@@ -191,7 +191,7 @@
   .gstep.next .check { border-color: var(--accent); animation: breathe 1.6s ease-in-out infinite; }
   @keyframes breathe { 50% { box-shadow: 0 0 0 4px var(--accent-soft); } }
   .gfoot { margin-top: 8px; color: var(--muted); font-size: 12px; }
-  /* the guide once only one step is left: a single line, so your parks stay in view */
+  /* the guide once only one step is left: a single line, so your desks stay in view */
   .guide.compact { display: flex; align-items: center; gap: 10px; padding: 8px 12px; }
   .guide.compact .gtitle { flex: 1; font-size: 13px; }
   .guide.compact .gtitle b { font-weight: 600; }
@@ -282,6 +282,9 @@ function setBusy(text) {
 }
 function busyText(text) {
   const verb = (text.match(/^\s*(?:let'?s\s+)?(\w+)/i) || [])[1]?.toLowerCase();
+  // "save my desk" gathers what's open (on a draft it saves it, which "Saving…" below covers)
+  if (state.view !== "draft" && /^\s*(?:let'?s\s+)?(?:(?:save|new|park)(?:\s+(?:my|this|the|a))?\s+(?:desk|disk)|desk|disk)\b/i.test(text))
+    return "Looking at what's open…";
   return { park: "Looking at what's open…", resume: "Opening…", retrieve: "Opening…", restore: "Opening…",
            start: "Opening…", launch: "Opening…", save: "Saving…" }[verb] || "Working…";
 }
@@ -294,7 +297,7 @@ function intent(text) {
   if (/^((hide|skip|close|dismiss)( the)? (guide|tips|getting started|tutorial)|got it)$/i.test(t)) return "Hide the guide";
   if (state.view === "ask") return `Name → ${t}`;
   if (state.view === "namecheck") return /^(yes|yeah|yep|confirm|sure|ok)/i.test(t) ? `Save as ${state.name}`
-    : /^(no|nope|nah|back|go back)\b/i.test(t) ? "Back to the park" : `Name → ${t.replace(/^(save|call it|name it)( it)?( as)?\s*/i, "")}`;
+    : /^(no|nope|nah|back|go back)\b/i.test(t) ? "Back to the desk" : `Name → ${t.replace(/^(save|call it|name it)( it)?( as)?\s*/i, "")}`;
   if (state.view === "confirm") return /^(yes|yeah|yep|confirm|sure|ok)/i.test(t) ? `Delete ${state.name}` : `Keep ${state.name}`;
   let m;
   if (state.view === "draft") {
@@ -304,17 +307,18 @@ function intent(text) {
     const verb = clearing.test(t) ? "Save and clear" : "Save as";
     if (!short && clearing.test(t)) return `Save and clear → ${state.name || state.suggested || "…"}`;
     if ((m = short.match(/^(?:(?:done|finished)[\s,.]+)?(?:save|name it|call it)\b(.*)/i)) || /^(done|finished|complete)$/i.test(short)) {
-      const name = (m ? m[1] : "").split(/\s(?:as|called|named)\s/i).pop().replace(/^\s*(?:it|this|park)\s*/i, "").trim();
+      const name = (m ? m[1] : "").split(/\s(?:as|called|named)\s/i).pop().replace(/^\s*(?:it|this|park|(?:my |this |the )?(?:desk|disk))\s*/i, "").trim();
       return `${verb} → ${name || state.name || state.suggested || "…"}`;
     }
-    if (/^(cancel|discard)/i.test(t)) return "Cancel this park";
+    if (/^(cancel|discard)/i.test(t)) return "Cancel this desk";
     if (/^(show|list|resume|view|open|start)\b/i.test(t)) return "";
     return "Note";
   }
-  if (/^(list|parks|parts|(show|see|view)(ing)?( me)?( all)? (my |the )?(parks|parts)|my (parks|parts))\b/i.test(t)) return "Show parks";
-  if ((m = t.match(/^(?:park|new park)\b[\s.,:;!?]*([^.,:;!?\n]*)/i))) return `New park${m[1].trim() ? " → " + m[1].trim() : ""}`;
+  if (/^(list|desks|parks|parts|(show|see|view)(ing)?( me)?( all)? (my |the )?(desks|parks|parts)|my (desks|parks|parts))\b/i.test(t)) return "Show desks";
+  if ((m = t.match(/^(?:park|new park|desk|disk|(?:save|new|park)(?:\s+(?:my|this|the|a))?\s+(?:desk|disk))\b(?:\s+as\b)?[\s.,:;!?]*([^.,:;!?\n]*)/i)))
+    return `New desk${m[1].trim() ? " → " + m[1].trim() : ""}`;
   if ((m = t.match(/^unpin\s+([^.,:;!?\n]+)/i))) return `Unpin → ${m[1].trim()}`;
-  if ((m = t.match(/^pin\b(?:\s+(?:this|it))?\s*([^.,:;!?\n]*)/i))) return `Pin → ${m[1].trim() || state.name || "this park"}`;
+  if ((m = t.match(/^pin\b(?:\s+(?:this|it))?\s*([^.,:;!?\n]*)/i))) return `Pin → ${m[1].trim() || state.name || "this desk"}`;
   if ((m = t.match(/^(?:start|launch|set ?up|fire up)\s+([^.,:;!?\n]+)/i))) return `Start → ${m[1].trim()}`;
   if ((m = t.match(/^(?:resume|retrieve|restore|back to|continue|switch to|open)\s+([^.,:;!?\n]+)/i))) return `Resume → ${m[1].trim()}`;
   if ((m = t.match(/^(?:delete|trash|forget|remove)\s+([^.,:;!?\n]+)/i))) return `Delete → ${m[1].trim()}`;
@@ -407,7 +411,7 @@ function parkRow(p, i) {
 // First-run guide: three steps that tick off as you do them; the next one is highlighted
 const GUIDE = [
   ["hotkey", "Open Shiori from anywhere", "<kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>S</kbd>"],
-  ["saved", "Save what's open", "say or type <b>park</b>, then <b>save</b>"],
+  ["saved", "Save your desk", "say or type <b>save my desk</b>, then <b>save</b>"],
   ["resumed", "Bring it back later", "<b>resume</b>: the last one, or <b>resume coding</b>"],
 ];
 function guideCard(progress) {
@@ -433,17 +437,17 @@ function guideCard(progress) {
 const views = {
   home(s) {
     const msg = s.message ? `<div class="msg">${esc(s.message)}${s.undo ? ` ${undoButton(s, true)}` : ""}</div>` : "";
-    const draft = s.draft ? `<div class="foot">You have an unsaved park. Say “park” to go back to it.</div>` : "";
-    const parkButton = `<div class="actions"><button class="primary" data-say="park">${s.draft ? "Back to unsaved park" : "Park what's open"}</button>
-      ${s.draft ? "" : `<button class="ghost" data-say="park and clear" title="Park, then close what you saved">or park and clear</button>`}</div>`;
+    const draft = s.draft ? `<div class="foot">You have an unsaved desk. Say “save my desk” to go back to it.</div>` : "";
+    const parkButton = `<div class="actions"><button class="primary" data-say="save my desk">${s.draft ? "Back to unsaved desk" : "Save my desk"}</button>
+      ${s.draft ? "" : `<button class="ghost" data-say="save my desk and clear" title="Save, then close what you saved">or save and clear</button>`}</div>`;
     const guide = s.guide ? guideCard(s.guide) : "";
     if (!s.parks.length && guide) return `<section>${msg}${guide}${parkButton}${draft}</section>`;
-    if (s.parks.length && guide) return `<section>${msg}${guide}<div class="label">Your parks</div>
+    if (s.parks.length && guide) return `<section>${msg}${guide}<div class="label">Your desks</div>
       <div class="scroll stagger">${s.parks.map((p, i) => parkRow(p, i)).join("")}</div>${parkButton}${draft}</section>`;
-    if (!s.parks.length) return `<section>${msg}<div class="empty-state">Nothing parked yet.<br>
-      Say <b>“Park”</b> to save what's open, drop what you don't need, then <b>“save as coding”</b>.<br>
+    if (!s.parks.length) return `<section>${msg}<div class="empty-state">No desks saved yet.<br>
+      Say <b>“Save my desk”</b> to save what's open, drop what you don't need, then <b>“save as coding”</b>.<br>
       Later: <b>“resume coding”</b>.</div>${parkButton}${draft}</section>`;
-    return `<section>${msg}<div class="label">Your parks · ↑↓ Enter to resume · click to view</div>
+    return `<section>${msg}<div class="label">Your desks · ↑↓ Enter to resume · click to view</div>
       <div class="scroll stagger">${s.parks.map((p, i) => parkRow(p, i)).join("")}</div>${parkButton}${draft}</section>`;
   },
 
@@ -451,7 +455,7 @@ const views = {
     const total = s.groups.reduce((n, g) => n + g.items.length, 0);
     const kept = s.groups.reduce((n, g) => n + g.items.filter(i => i.keep).length, 0);
     const name = s.name || s.suggested;  // "save" alone uses the suggestion
-    return `<section><h2>New park <span class="sub">→ ${esc(name)}${s.name ? "" : " (suggested)"}</span><span class="tag">not saved</span></h2>
+    return `<section><h2>New desk <span class="sub">→ ${esc(name)}${s.name ? "" : " (suggested)"}</span><span class="tag">not saved</span></h2>
       ${noteBlock(s.note, s.steps, "", s.cues, { voice: true })}
       <div class="scroll stagger-rows">${groupsBlock(s.groups, true)}</div>
       ${s.no_tabs.length ? `<div class="warn">${esc(s.no_tabs.join(" and "))} shows only the tab in front. Add the Shiori extension to pick tabs.</div>` : ""}
@@ -472,7 +476,7 @@ const views = {
     const pinnedCount = s.pinned.reduce((n, g) => n + g.items.length, 0);
     const title = saved
       ? `<h2><svg class="tick" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M7 12.5l3.2 3.2L17 9"/></svg>Saved ${esc(s.name)}</h2>`
-      : `<h2><span class="dot" style="background:${color(s.name)}"></span>${esc(s.name)} <span class="sub">parked ${esc(s.ago)}</span>
+      : `<h2><span class="dot" style="background:${color(s.name)}"></span>${esc(s.name)} <span class="sub">saved ${esc(s.ago)}</span>
          ${pinnedCount ? `<span class="badge">preset</span>` : ""}</h2>`;
     const message = s.message && !saved ? `<div class="msg" style="margin:-2px 0 8px">${esc(s.message)}</div>` : "";
     // after saving, the long list folds into one line per group; the full list is a click away
@@ -485,14 +489,14 @@ const views = {
     const versions = s.versions.length ? `<details><summary>${plural(s.versions.length, "older version")}</summary>${
       s.versions.map(v => `<div>${esc(v.ago)} — ${esc(v.note || "no note")}</div>`).join("")}</details>` : "";
     const buttons = pinnedCount
-      ? `<button class="primary" data-say="start ${esc(s.name)}">Start preset</button><button data-say="resume ${esc(s.name)}">Resume last park</button>`
+      ? `<button class="primary" data-say="start ${esc(s.name)}">Start preset</button><button data-say="resume ${esc(s.name)}">Resume last save</button>`
       : `<button class="primary" data-say="resume ${esc(s.name)}">Resume</button><button data-say="pin ${esc(s.name)}">Pin as preset</button>`;
     // after "save and clear": what closed, and what was left open on purpose (and why)
     const cleared = s.cleared ? `<div class="msg">${s.cleared.length ? `Cleared ${esc(s.cleared.join(", "))}` : "Nothing needed closing"}</div>
       ${s.left_open?.length ? `<details><summary>${plural(s.left_open.length, "thing")} left open</summary>${
         s.left_open.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : ""}` : "";
     return `<section>${title}${message}${noteBlock(s.note, s.steps, "No note", s.cues, { tickable: true, done: s.done })}${items}${cleared}${pinned}${versions}
-      <div class="actions">${undoButton(s)}${buttons}<button data-say="list">All parks</button>
+      <div class="actions">${undoButton(s)}${buttons}<button data-say="list">All desks</button>
       <button class="danger" data-say="delete ${esc(s.name)}">Delete</button></div></section>`;
   },
 
@@ -506,7 +510,7 @@ const views = {
     const skipped = s.skipped.length ? `<details><summary>${summary}</summary>${
       s.skipped.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : "";
     const verb = { Started: "Started", Reopened: "Reopened" }[s.verb] || "Resuming";
-    return `<section><h2>${verb} ${esc(s.name)} <span class="sub">${started ? "last parked" : "parked"} ${esc(s.ago)}</span></h2>
+    return `<section><h2>${verb} ${esc(s.name)} <span class="sub">${started ? "last saved" : "saved"} ${esc(s.ago)}</span></h2>
       ${noteBlock(s.note, s.steps, "No note", s.cues, { tickable: true, done: s.done })}
       <div class="label">${s.opened.length ? "Opening" : "Nothing to open"}</div>
       <div class="pills stagger">${pills || `<span class="meta">It's all already here.</span>`}</div>${skipped}
@@ -535,7 +539,7 @@ const views = {
 };
 
 const PLACEHOLDER = {
-  home: "park · show my parks · resume coding · start dsa",
+  home: "save my desk · show my desks · resume coding · start dsa",
   draft: "drop 3 · your note · save as coding",
   ask: "coding, acads, dsa…",
   park: "resume · pin this · start · delete",
@@ -591,7 +595,7 @@ function showCursor(scroll = true) {
 }
 
 function complete() {
-  const m = q.value.match(/^(\s*(?:resume|view|start|delete|pin|unpin|park|show|open|save as)\s+)(.*)$/i);
+  const m = q.value.match(/^(\s*(?:resume|view|start|delete|pin|unpin|park|desk|show|open|save as)\s+)(.*)$/i);
   if (!m || !parkNames.length) return false;
   if (!tabCycle || tabCycle.prefix !== m[1]) {
     const typed = m[2].toLowerCase();

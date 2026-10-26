@@ -1,10 +1,10 @@
 """Shiori: lives in the system tray, pops up on Ctrl+Alt+S, and you talk to it.
 
-  "Park"                          start a park with every window and tab open
+  "Save my desk"                  start with every window and tab open
   "drop 3" / "drop youtube"       leave things out (or click them)
   "I was fixing X, next do Y"     your note for when you come back
   "Save as coding"                name it and save
-  "Show my parks" · "View coding" · "Resume coding" · "Delete coding"
+  "Show my desks" · "View coding" · "Resume coding" · "Delete coding"
 
 Run without a console:  .venv\\Scripts\\pythonw.exe main.py
 Run with logs visible:  .venv\\Scripts\\python.exe main.py
@@ -33,6 +33,7 @@ import winerror
 from PIL import Image, ImageDraw
 
 import browser
+import desk
 import onboarding
 import paths
 import store
@@ -48,6 +49,9 @@ OLD_STARTUP_LINK = STARTUP_LINK.with_name("Stage.lnk")  # from before the app wa
 
 log = logging.getLogger("shiori")
 window = None
+note_window = None  # the full-screen note shown after a resume
+NOTE_TITLE = "Shiori note"
+NOTE_DELAY = 2.5    # seconds after a resume: windows have started opening behind it
 icon = None
 controller = Controller()
 
@@ -65,7 +69,10 @@ class Api:
 
     def submit(self, text):
         log.info("said: %r", text)
-        return self._safe(controller.handle, text)
+        view = self._safe(controller.handle, text)
+        if view.get("view") == "resume" and view.get("verb") == "Resumed":
+            threading.Thread(target=show_note, args=(view,), daemon=True).start()
+        return view
 
     def opened(self):
         return self._safe(controller.opened)
@@ -94,28 +101,33 @@ class Api:
         threading.Thread(target=hide_if_left, daemon=True).start()
 
 
+class NoteApi:  # what the note page can call
+    def dismiss(self):
+        note_window.hide()
+
+
 # --- Showing the bar ---------------------------------------------------------------
-def bar_hwnd():
+def bar_hwnd(title=TITLE):
     """Our own window: titled "Shiori" AND owned by this process. (Title alone isn't
     enough: any app can have a window called "Shiori", e.g. a browser tab.)"""
     found = []
 
     def check(hwnd, _):
-        if win32gui.GetWindowText(hwnd) == TITLE and win32process.GetWindowThreadProcessId(hwnd)[1] == os.getpid():
+        if win32gui.GetWindowText(hwnd) == title and win32process.GetWindowThreadProcessId(hwnd)[1] == os.getpid():
             found.append(hwnd)
 
     win32gui.EnumWindows(check, None)
     return found[0] if found else 0
 
 
-def bring_to_front():
-    """Make the bar the active window so Wispr's paste goes into it.
+def bring_to_front(hwnd=None):
+    """Make the bar (or another of our windows) the active window, so Wispr's paste goes into it.
 
     SetForegroundWindow can fail silently (Windows only lets the active app hand
     over focus), so check and retry: plain, then borrowing the active window's
     input thread, then tapping Alt. Returns the number of retries, -1 if it failed.
     """
-    hwnd = bar_hwnd()
+    hwnd = hwnd or bar_hwnd()
     for attempt in range(5):
         if win32gui.GetForegroundWindow() == hwnd:
             return attempt
@@ -146,6 +158,9 @@ def bar_visible():
 
 
 def show_bar():
+    hide_note()
+    if not bar_visible():
+        controller.desk_shot = desk.grab()  # the desk before the bar covers it, kept if you save
     screen_w = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
     screen_h = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
     window.move((screen_w - WIDTH) // 2, int(screen_h * 0.18))
@@ -168,6 +183,32 @@ def hide_if_left():
         return  # Wispr's own window while you hold Ctrl+Win: it pastes back into the bar
     log.info("hidden: you clicked into %s", front_app or "another window")
     window.hide()
+
+
+# --- The note after a resume: your desk dimmed, your words in big type -----------------
+def show_note(view):
+    """A moment after a resume: hide the bar, picture the screen (everything is reopening
+    behind it), and show that picture dimmed with your note on top."""
+    time.sleep(NOTE_DELAY)
+    window.hide()
+    time.sleep(0.3)  # let the bar disappear from the picture
+    state = {k: view.get(k) for k in ("name", "ago", "note", "steps", "done", "cues")}
+    state["backdrop"] = desk.data_url(desk.grab(1600))
+    state["shot"] = desk.data_url(file=view.get("shot", ""))
+    note_window.evaluate_js(f"ShioriNote.show({json.dumps(state)})")
+    note_window.show()
+    hwnd = bar_hwnd(NOTE_TITLE)
+    width = win32api.GetSystemMetrics(win32con.SM_CXSCREEN)
+    height = win32api.GetSystemMetrics(win32con.SM_CYSCREEN)
+    win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, width, height, win32con.SWP_SHOWWINDOW)
+    bring_to_front(hwnd)  # so a key press reaches it and closes it
+    log.info("note shown for %s", view.get("name"))
+
+
+def hide_note():
+    hwnd = bar_hwnd(NOTE_TITLE)
+    if hwnd and win32gui.IsWindowVisible(hwnd):
+        note_window.hide()
 
 
 def toggle_bar():
@@ -217,7 +258,7 @@ def set_start_with_windows(on):
         target, args = str(Path(sys.executable).with_name("pythonw.exe")), f'"{APP_DIR / "main.py"}"'
     link = win32com.client.Dispatch("WScript.Shell").CreateShortcut(str(STARTUP_LINK))
     link.TargetPath, link.Arguments, link.WorkingDirectory = target, args, str(APP_DIR)
-    link.Description = "Shiori: park and resume your work by voice"
+    link.Description = "Shiori: save your desk and come back to it, by voice"
     link.Save()
 
 
@@ -233,6 +274,7 @@ def tray_image():
 def quit_app():
     log.info("quit")
     icon.stop()
+    note_window.destroy()
     window.destroy()
 
 
@@ -325,4 +367,7 @@ if __name__ == "__main__":
         width=WIDTH, height=MIN_HEIGHT, frameless=True, on_top=True, hidden=True,
         resizable=False, easy_drag=False, background_color="#15171c",
     )
+    note_window = webview.create_window(
+        NOTE_TITLE, url=str(paths.BUNDLE / "web" / "overlay.html"), js_api=NoteApi(),
+        frameless=True, on_top=True, hidden=True, resizable=False, background_color="#0b0c10")
     webview.start(on_started)

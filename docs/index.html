@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Shiori: park your work by voice</title>
-<meta name="description" content="A Windows tray app: say park to save every window, tab, terminal and file with a note for later. Say resume to bring it all back. Works with Wispr Flow.">
-<meta property="og:title" content="Shiori: park your work by voice">
-<meta property="og:description" content="Say park to save everything that's open with a note. Say resume to bring it back, where your head was.">
+<title>Shiori: save your desk by voice</title>
+<meta name="description" content="A Windows tray app: say save my desk to keep every window, tab, terminal and file with a note for later. Say resume to bring it all back. Works with Wispr Flow.">
+<meta property="og:title" content="Shiori: save your desk by voice">
+<meta property="og:description" content="Say save my desk to keep everything that's open with a note. Say resume to bring it back, where your head was.">
 <meta property="og:image" content="img/draft.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='16' fill='%233567e0'/%3E%3Ctext x='32' y='45' font-family='Segoe UI,Arial' font-weight='700' font-size='38' text-anchor='middle' fill='white'%3ES%3C/text%3E%3C/svg%3E">
 <style>
@@ -137,10 +137,10 @@
   <div class="hero">
     <div>
       <span class="eyebrow">Built for the No Hands: Wispr Challenge</span>
-      <h1>Park your work by voice.<br><em>Resume where your head was.</em></h1>
-      <p class="lede">Switching tasks? Say <b>“park”</b>. Shiori saves every window, tab, terminal and file that's open,
+      <h1>Save your whole desk by voice.<br><em>Resume where your head was.</em></h1>
+      <p class="lede">Switching tasks? Say <b>“save my desk”</b>. Shiori keeps every window, tab, terminal and file that's open,
         plus a quick spoken note on what you were doing and what's next. Days later, say <b>“resume”</b> and it all
-        comes back, with your note.</p>
+        comes back, with your note in big type on top.</p>
       <div class="cta">
         <a class="btn primary" href="https://github.com/kavyan256/shiori/releases/latest/download/Shiori-setup.zip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/></svg>
@@ -149,7 +149,7 @@
       </div>
       <p class="fine">Windows 10 / 11 · free · about 25 MB · no admin, no account, no API key</p>
     </div>
-    <img class="shot" src="img/draft.png" alt="Shiori's command bar showing a new park: VS Code, an Excel file, a dev-server terminal and two Chrome tabs ticked, a music tab left out, and a prompt to say what you were doing">
+    <img class="shot" src="img/draft.png" alt="Shiori's command bar saving a desk: VS Code, an Excel file, a dev-server terminal and two Chrome tabs ticked, a music tab left out, and a prompt to say what you were doing">
   </div>
 </div>
 
@@ -159,23 +159,32 @@
     <p class="sub">Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>S</kbd> anywhere, hold your Wispr Flow key and talk.
       Typing works exactly the same.</p>
     <div class="steps">
-      <div class="step"><div class="n">1</div><h3>Park</h3>
+      <div class="step"><div class="n">1</div><h3>Save your desk</h3>
         <p>Everything open appears, already ticked. Chat and music start unticked. Drop anything with a click or a word.</p>
-        <span class="say">“park”</span></div>
+        <span class="say">“save my desk”</span></div>
       <div class="step"><div class="n">2</div><h3>Say what's next</h3>
         <p>Talk through where you are. Shiori keeps your words, and each “next…” becomes a step you can tick off later.</p>
         <span class="say">“I was fixing the login loop, next write the test”</span></div>
       <div class="step"><div class="n">3</div><h3>Resume</h3>
-        <p>Folders, tabs, terminals and files reopen, and your note is the first thing you read.</p>
+        <p>Folders, tabs, terminals and files reopen behind it, and your note fills the screen: the first thing you read.</p>
         <span class="say">“resume shop-api”</span></div>
     </div>
   </div>
 </section>
 
 <section>
+  <div class="wrap">
+    <h2>Come back to your own words</h2>
+    <p class="sub">When you resume, everything reopens behind a full-screen note: what you were doing, what's
+      next, the branch you were on, and a picture of your desk as you left it. Any key, and you're back at work.</p>
+    <img class="shot" src="img/overlay.jpg" alt="After a resume: the note in big bold type over the dimmed desk, next steps as tick boxes, the git branch, and a picture of the desk when it was saved">
+  </div>
+</section>
+
+<section>
   <div class="wrap duo">
     <figure>
-      <img class="shot" src="img/note.png" alt="A park with the spoken note and two next steps">
+      <img class="shot" src="img/note.png" alt="A saved desk with the spoken note and two next steps">
       <figcaption>Your note, split into what you were doing and the steps that come next.</figcaption>
     </figure>
     <figure>
@@ -206,7 +215,7 @@
       <h2>Everything by voice</h2>
       <p class="sub" style="margin-bottom:20px">Every button has a sentence, and every sentence works typed too.</p>
       <table>
-        <tr><td>park</td><td>Gather what's open</td></tr>
+        <tr><td>save my desk</td><td>Gather what's open</td></tr>
         <tr><td>drop 3 · drop youtube</td><td>Leave something out</td></tr>
         <tr><td>save as dsa · save</td><td>Save it, with a suggested name if you don't give one</td></tr>
         <tr><td>save and clear</td><td>Save, then close what you saved (Undo for 60 s)</td></tr>
@@ -217,8 +226,8 @@
       </table>
     </div>
     <figure>
-      <img class="shot" src="img/typing.png" alt="Typing resume shop-api: the bar previews the action and lists saved parks with their next step">
-      <figcaption>Your parks, each with the next thing to do. The bar shows what a command will do before it runs.</figcaption>
+      <img class="shot" src="img/typing.png" alt="Typing resume shop-api: the bar previews the action and lists saved desks with their next step">
+      <figcaption>Your desks, each with the next thing to do. The bar shows what a command will do before it runs.</figcaption>
     </figure>
   </div>
 </section>
@@ -242,7 +251,7 @@
         right-click it and choose <b>Extract All</b></li>
       <li>Double-click <b>Install Shiori.cmd</b>
         <span>If Windows says “Windows protected your PC”, choose More info → Run anyway. Shiori isn't code-signed yet.</span></li>
-      <li>Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>S</kbd>. A short guide walks you through your first park.
+      <li>Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>S</kbd>. A short guide walks you through saving your first desk.
         <span>For browser tabs: right-click the tray <b>S</b> → Set up browser tabs, and follow the three steps.</span></li>
     </ol>
   </div>
@@ -253,7 +262,7 @@
     <div class="private">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 8.5 7 10 4-1.5 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
       <div><h3>Your work stays on your PC</h3>
-        <p>Parks are plain files in <code>%LOCALAPPDATA%\Shiori</code>. No account, no cloud, no API key. The browser
+        <p>Saved desks are plain files in <code>%LOCALAPPDATA%\Shiori</code>. No account, no cloud, no API key. The browser
           extension only talks to Shiori on your own machine.</p></div>
     </div>
   </div>

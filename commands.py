@@ -1,47 +1,50 @@
 """Understanding what you said: turns dictated text into a command.
 
-The park flow is a draft you build up, then save:
-  "Park"                                   start a draft with everything open
+Saving your desk is a draft you build up, then save:
+  "Save my desk" (or "desk", "park")      start a draft with everything open
   "drop 3" / "drop youtube" / "keep 3"     choose what goes in
   "I was fixing X, next do Y"              anything else is the note
   "Save as coding"                         name it and save
   "Cancel"                                 throw the draft away
 
 Any time:
-  "Show my parks" · "View coding" · "Resume coding" · "Delete coding" (then "yes")
+  "Show my desks" · "View coding" · "Resume coding" · "Delete coding" (then "yes")
 
 Presets:
-  "Pin this" (while viewing a park) / "Pin dsa"   its items become the preset
+  "Pin this" (while viewing a desk) / "Pin dsa"   its items become the preset
   "Start dsa"                                     open the preset's pinned items
-  "Unpin dsa"                                     back to a plain park
-  "Park dsa"                                      starts with dsa's things ticked, the rest unticked
+  "Unpin dsa"                                     back to a plain desk
+  "Save my desk as dsa"                           starts with dsa's things ticked, the rest unticked
+
+Inside, a saved desk is still called a "park" (store.park, the "park" view): that was its first name.
 """
 import re
 
 import store
 
 # --- any time ---
-PARK = re.compile(r"^(?:park|new park)(?:\s+(?:this|everything|it all|all(?: of)?(?: this| these| it)?|these|now))?"
+# "save my desk", "new desk", "desk"; "park" was the first name and still works; Wispr sometimes hears "disk"
+PARK = re.compile(r"^(?:park|new park|desk|disk|(?:save|new|park)(?:\s+(?:my|this|the|a))?\s+(?:desk|disk))(?:\s+(?:this|everything|it all|all(?: of)?(?: this| these| it)?|these|now))?"
                   r"(?:\s+(?:as|called|named))?(?:[\s.,:;!?]+(?P<rest>.+))?$", re.I | re.S)
 # "resume" alone, "resume the last one", "pick up where I left off": the newest park
 RESUME_LAST = re.compile(r"^(?:resume|continue|go back|back to work|pick up where i left off)"
-                         r"(?:\s+(?:it|that|this|last|latest|the (?:last|latest)(?: one| park)?|my (?:last|latest)(?: one| park)?"
+                         r"(?:\s+(?:it|that|this|last|latest|the (?:last|latest)(?: one| park| desk)?|my (?:last|latest)(?: one| park| desk)?"
                          r"|where i left off))?$", re.I)
 RESUME = re.compile(r"^(?:resume|retrieve|restore|back to|go back to|continue|switch to|open)\s+(?P<name>.+)$", re.I | re.S)
 # "parts": Wispr often hears "parks" as "parts"
-LIST = re.compile(r"^(?:list|parks|parts|stages|(?:show|see|view)(?:ing)?(?: me)?(?: all)? (?:of )?(?:my |the )?"
-                  r"(?:parks|parts|stages)|my (?:parks|parts|stages))\b", re.I)
-# Polite lead-ins people say before a command: "let's resume coding", "can you show my parks"
+LIST = re.compile(r"^(?:list|desks|disks|parks|parts|stages|(?:show|see|view)(?:ing)?(?: me)?(?: all)? (?:of )?(?:my |the )?"
+                  r"(?:desks|disks|parks|parts|stages)|my (?:desks|disks|parks|parts|stages))\b", re.I)
+# Polite lead-ins people say before a command: "let's resume coding", "can you show my desks"
 LEAD_IN = re.compile(r"^(?:(?:ok(?:ay)?|so|hey|please|now|and|alright|let'?s|let us|can you|could you|"
                      r"would you|i want to|i'd like to)[\s,]+)+", re.I)
-VIEW = re.compile(r"^(?:view|show|see|look at|details (?:of|for))\s+(?:me\s+)?(?:the\s+)?(?:park\s+)?(?P<name>.+)$", re.I)
-DELETE = re.compile(r"^(?:delete|trash|forget|remove)\s+(?:the\s+)?(?:park\s+)?(?P<name>.+)$", re.I)
-PIN = re.compile(r"^pin(?:\s+(?:this|it|the park|that))?(?:\s+(?:park|preset))?(?:\s+(?P<name>.+))?$", re.I)
-UNPIN = re.compile(r"^unpin\s+(?:the\s+)?(?:park\s+)?(?P<name>.+)$", re.I)
+VIEW = re.compile(r"^(?:view|show|see|look at|details (?:of|for))\s+(?:me\s+)?(?:the\s+)?(?:(?:park|desk)\s+)?(?P<name>.+)$", re.I)
+DELETE = re.compile(r"^(?:delete|trash|forget|remove)\s+(?:the\s+)?(?:(?:park|desk)\s+)?(?P<name>.+)$", re.I)
+PIN = re.compile(r"^pin(?:\s+(?:this|it|the park|the desk|that))?(?:\s+(?:park|desk|preset))?(?:\s+(?P<name>.+))?$", re.I)
+UNPIN = re.compile(r"^unpin\s+(?:the\s+)?(?:(?:park|desk)\s+)?(?P<name>.+)$", re.I)
 START = re.compile(r"^(?:start|launch|set ?up|fire up|open (?:the )?preset)\s+(?:my\s+|the\s+)?(?P<name>.+?)"
-                   r"(?:\s+(?:preset|park|setup|stage))?$", re.I)
+                   r"(?:\s+(?:preset|park|desk|setup|stage))?$", re.I)
 HIDE_GUIDE = re.compile(r"^(?:hide|skip|close|dismiss)(?: the)? (?:guide|tips|getting started|tutorial)$|^got it$", re.I)
-# Ticking off a next step while a park is on screen: "tick 1", "done with step 2", "untick 1"
+# Ticking off a next step while a desk is on screen: "tick 1", "done with step 2", "untick 1"
 TICK_STEP = re.compile(r"^(?P<un>un)?(?:tick|check)(?: off)?(?: step| number)?\s+(?P<n>\w+)$"
                        r"|^(?:done|finished)(?: with)? (?:step|number) (?P<n2>\w+)$", re.I)
 UNDO = re.compile(r"^(?:undo|undo (?:that|it|this)|take (?:that|it) back)$", re.I)
@@ -55,7 +58,8 @@ YES = re.compile(r"^(?:yes|yeah|yep|yup|confirm|do it|delete it|sure|ok(?:ay)?)\
 # longer phrases first, so "add back chrome" isn't read as add "back chrome"
 DROP = re.compile(r"^(?:leave out|don'?t save|drop|remove|skip|exclude|untick)\s+(?P<what>.+)$", re.I)
 KEEP = re.compile(r"^(?:add back|bring back|keep|add|include|tick)\s+(?P<what>.+)$", re.I)
-SAVE = re.compile(r"^(?:(?:done|finished)[\s,.]+)?(?:save|name it|call it)(?:\s+(?:it|this|the park|park))?"
+SAVE = re.compile(r"^(?:(?:done|finished)[\s,.]+)?(?:save|name it|call it)"
+                  r"(?:\s+(?:it|this|the park|park|(?:my |this |the )?(?:desk|disk)))?"
                   r"(?:\s+(?:as|called|named))?\s*(?P<name>.*)$", re.I | re.S)
 DONE = re.compile(r"^(?:done|finish|finished|complete|that's it)$", re.I)  # alone only: "done with X" is a note
 CANCEL = re.compile(r"^(?:cancel|discard|never ?mind|throw (?:it|this) away)\b", re.I)

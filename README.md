@@ -1,20 +1,22 @@
 # Shiori 栞
 
-**Park your work by voice. Resume where your head was.**
+**Save your whole desk by voice. Resume where your head was.**
 
 *Shiori (栞) is Japanese for a bookmark: the ribbon you leave in a book so you can open it again at
 the exact page. This is that, for your desk.*
 
 Shiori is a small Windows tray app. When you have to switch tasks, press `Ctrl` `Alt` `S` and say
-**"park"**: Shiori gathers everything that's open (apps, folders, browser tabs, terminals, Office
+**"save my desk"**: Shiori gathers everything that's open (apps, folders, browser tabs, terminals, Office
 files, PDFs, the YouTube lecture you were halfway through), you say what you were doing and
 what's next, and save it under a name. Later, **"resume coding"** brings it all back and reads
-your note back to you.
+your note to you, full screen, over the desk it just reopened.
 
 Built for the [No Hands: Wispr Challenge](https://www.wemakedevs.org/wispr). Every step works
 by voice with [Wispr Flow](https://wisprflow.ai); typing works the same.
 
-![Shiori's command bar, parking a coding session](docs/img/draft.png)
+![Shiori's command bar, saving a coding desk](docs/img/draft.png)
+
+![After a resume: your note in big type over your dimmed desk](docs/img/overlay.jpg)
 
 ## Download
 
@@ -32,13 +34,13 @@ follow the three steps. Without it Shiori still works; browsers show only their 
 
 | Say (or type) | What happens |
 |---|---|
-| `park` | Everything open, ticked, ready to save |
+| `save my desk` | Everything open, ticked, ready to save |
 | `drop 3` · `drop youtube` | Leave things out (or just click them) |
 | `I was fixing the login bug, next write the tests` | Your note; "next …" become steps you can tick off |
 | `save as coding` · `save` | Save it (plain `save` uses a suggested name) |
 | `save and clear` | Save, then close what you saved (60 s to Undo) |
 | `resume coding` · `resume` | Bring it back (plain `resume` = the last one) |
-| `show my parks` · `view coding` · `delete coding` | Look after your parks |
+| `show my desks` · `view coding` · `delete coding` | Look after your saved desks |
 | `pin this` · `start dsa` | Make a preset you can start any time |
 | `tick 1` | Tick off a next step while reading your note |
 | `undo` | Take back the last resume, clear or delete |
@@ -64,10 +66,10 @@ for the bar · pystray for the tray · a Chrome/Edge MV3 extension over a local 
 PyInstaller for `Shiori.exe`.
 
 ```
-capture.py    what's open: windows, apps, folders      restore.py   bring a park back
+capture.py    what's open: windows, apps, folders      restore.py   bring a desk back
 items.py      windows + tabs + terminals + files        controller.py the bar's brain: every command
 terminals.py  shells, their folders and commands        commands.py  what you said -> a command
-office.py     Excel/Word/PowerPoint via COM             store.py     parks as JSON, versions, trash
+office.py     Excel/Word/PowerPoint via COM             store.py     desks as JSON, versions, trash
 browser.py    local bridge to the extension             web/bar.html the command bar
 ```
 

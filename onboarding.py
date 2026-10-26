@@ -1,7 +1,7 @@
 """The first-run guide: three steps that tick off as you actually do them.
 
   1. open Shiori with the hotkey     (ticked when you press Ctrl+Alt+S)
-  2. park, then save                (ticked when a park is saved)
+  2. save my desk, then save       (ticked when a desk is saved)
   3. resume it                      (ticked when you resume or start one)
 
 Progress lives in onboarding.json next to your parks. The guide shows on the home

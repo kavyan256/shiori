@@ -47,7 +47,7 @@ def save(stage):
     os.replace(tmp, path)
 
 
-def park(name, items, note="", steps=None, cues=None):
+def park(name, items, note="", steps=None, cues=None, shot=""):
     """Save a version under this name (creating it if new). Items keep their keep=True/False."""
     stage = load(name) or {"name": name, "snapshots": []}
     snapshot = {
@@ -57,6 +57,8 @@ def park(name, items, note="", steps=None, cues=None):
         "windows": items,  # app windows, tabs, terminals and files (see items.py)
         "cues": cues or [],  # git branch / changes per repo (see cues.py)
     }
+    if shot:
+        snapshot["shot"] = shot  # a picture of the desk when you saved (see desk.py)
     stage["snapshots"].append(snapshot)
     save(stage)
     return snapshot
@@ -90,7 +92,7 @@ def undelete(trashed, name):
     return True
 
 
-FILLER_WORDS = {"the", "my", "a", "shiori", "stage", "park", "parks", "part", "parts", "project", "work", "thing", "stuff"}
+FILLER_WORDS = {"the", "my", "a", "shiori", "stage", "desk", "desks", "disk", "park", "parks", "part", "parts", "project", "work", "thing", "stuff"}
 NUMBERS = {w: str(n) for n, w in enumerate("zero one two three four five six seven eight nine ten".split())}
 
 
