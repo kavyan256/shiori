@@ -8,23 +8,23 @@
 <meta property="og:title" content="Shiori: a bookmark for your whole desk">
 <meta property="og:description" content="Say “save my desk” and leave a note. Say “resume” days later: everything reopens, and your note is the first thing you read.">
 <meta property="og:image" content="img/s-overlay.jpg">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='14' fill='%231c1b19'/%3E%3Cpath d='M38 4h10v30l-5-4-5 4z' fill='%23c8412f'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='14' fill='%230B0D12'/%3E%3Cpath d='M38 4h10v30l-5-4-5 4z' fill='%237AA2F7'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  /* A printed book: warm paper, ink, and one red ribbon. */
+  /* Midnight, like the app: near-black blue, soft white, and one blue ribbon. */
   :root {
-    --paper: #f4efe4; --page: #fbf8f1; --ink: #1c1b19; --ink-2: #5e584e; --rule: #dcd3c2;
-    --ribbon: #c8412f; --ribbon-dark: #9e2f20;
+    --paper: #0B0D12; --page: #12151d; --ink: #e6e9f0; --ink-2: #9aa1b2; --rule: #232836;
+    --ribbon: #7AA2F7; --ribbon-dark: #4f74c9; --on-ribbon: #0B0D12; --shadow: rgba(0, 0, 0, .55);
     --serif: "Instrument Serif", "Iowan Old Style", Georgia, serif;
     --sans: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
     --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
     --max: 1120px;
   }
-  @media (prefers-color-scheme: dark) {
-    :root { --paper: #161513; --page: #1e1c19; --ink: #ede6d8; --ink-2: #a79f91; --rule: #34302a;
-            --ribbon: #e0604b; --ribbon-dark: #b84836; }
+  @media (prefers-color-scheme: light) {
+    :root { --paper: #f5f7fb; --page: #ffffff; --ink: #0f1320; --ink-2: #535b6e; --rule: #dce1eb;
+            --ribbon: #3457d5; --ribbon-dark: #2443b0; --on-ribbon: #ffffff; --shadow: rgba(15, 25, 60, .22); }
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -55,16 +55,16 @@
   .lede { font-size: 19px; color: var(--ink-2); margin: 0 0 34px; max-width: 30em; }
   .lede b { color: var(--ink); font-weight: 600; }
   .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 22px; }
-  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; background: var(--ink); color: var(--paper);
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 15px 26px; background: var(--ribbon); color: var(--on-ribbon);
          border-radius: 999px; font-weight: 600; text-decoration: none; transition: transform .15s ease, background .15s ease; }
-  .btn:hover { background: var(--ribbon); color: #fff; transform: translateY(-1px); }
+  .btn:hover { background: var(--ink); color: var(--paper); transform: translateY(-1px); }
   .btn svg { width: 18px; height: 18px; }
   .quiet { font-size: 15px; color: var(--ink-2); }
   .meta { margin-top: 20px; font-size: 14px; color: var(--ink-2); }
 
   /* the bookmark ribbon, hanging into the screenshot from above */
   .plate { position: relative; }
-  .plate img { border-radius: 6px; box-shadow: 0 1px 0 var(--rule), 0 30px 60px -20px rgba(40, 30, 10, .35); }
+  .plate img { border-radius: 6px; box-shadow: 0 1px 0 var(--rule), 0 30px 60px -20px var(--shadow); }
   .ribbon { position: absolute; top: -58px; right: 48px; width: 34px; height: 170px; z-index: 1; background: var(--ribbon);
             clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 86%, 0 100%); box-shadow: inset -6px 0 0 var(--ribbon-dark);
             transform-origin: top center; animation: sway 6s ease-in-out infinite; }
@@ -83,17 +83,16 @@
   .chapter h3 { font: 400 34px/1.1 var(--serif); margin: 4px 0 12px; }
   .chapter p { margin: 0 0 18px; color: var(--ink-2); }
   .said { font: italic 400 24px/1.35 var(--serif); color: var(--ink); border-left: 3px solid var(--ribbon); padding-left: 16px; margin: 0; }
-  .chapter img { border-radius: 6px; box-shadow: 0 1px 0 var(--rule), 0 20px 40px -18px rgba(40, 30, 10, .3); }
+  .chapter img { border-radius: 6px; box-shadow: 0 1px 0 var(--rule), 0 20px 40px -18px var(--shadow); }
 
   /* ---- full-bleed moment ---- */
   /* always dark, in either colour scheme */
-  .moment { background: #1c1b19; color: #f4efe4; border-top: 0; }
-  .moment .kicker { color: #e0604b; }
-  .moment h2 { color: #f4efe4; }
-  .moment .intro { color: #b9b1a3; }
+  .moment { background: #06080c; color: #e6e9f0; border-top: 0; }
+  .moment .kicker { color: #7AA2F7; }
+  .moment h2 { color: #e6e9f0; }
+  .moment .intro { color: #9aa1b2; }
   .moment video { display: block; width: 100%; height: auto; border-radius: 6px; background: #000;
                   box-shadow: 0 40px 80px -30px rgba(0, 0, 0, .7); }
-  @media (prefers-color-scheme: dark) { .moment { background: #0c0b0a; } }
 
   /* ---- what comes back: a ruled list, not cards ---- */
   dl.back { display: grid; grid-template-columns: 1fr 1fr; column-gap: 64px; margin: 0; }
@@ -262,7 +261,7 @@
         <tr><td>undo</td><td>Take back the last resume, clear or delete</td></tr>
       </table>
     </div>
-    <img src="img/s-desks.png" width="1088" height="483" loading="lazy" style="margin-top:110px;border-radius:6px;box-shadow:0 20px 40px -18px rgba(40,30,10,.3)"
+    <img src="img/s-desks.png" width="1088" height="483" loading="lazy" style="margin-top:110px;border-radius:6px;box-shadow:0 20px 40px -18px var(--shadow)"
          alt="Your desks: AI lab, cybersec lab (a preset), DSA and portfolio site, each with its next step">
   </div>
 </section>
