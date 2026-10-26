@@ -20,10 +20,12 @@ from pathlib import Path
 import pythoncom
 import win32com.client
 
+import limits
+
 RECENT = Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Recent"
 TITLE_APPS = {"notepad.exe", "notepad++.exe", "mspaint.exe", "acrobat.exe", "acrord32.exe",
               "sumatrapdf.exe", "photos.exe", "wordpad.exe"}
-BROWSERS = {"msedge.exe", "chrome.exe"}  # a PDF open in the browser's own viewer
+BROWSERS = {"msedge.exe", "chrome.exe", "brave.exe", "opera.exe"}  # a PDF open in the browser's own viewer
 MORE_PAGES = re.compile(r" and \d+ more pages?$")  # Edge: "notes.pdf and 2 more pages"
 
 
@@ -38,7 +40,12 @@ def name_from_title(title, app):
 
 
 def recent_files():
-    """{file name (lower case): full path} from Recent items, newest first wins."""
+    """{file name (lower case): full path} from Recent items, newest first wins. Empty if that
+    takes too long: a shortcut to a file on an offline network drive can hang the check."""
+    return limits.within(limits.OFFICE_SECONDS, _recent_files, default={}, what="Recent items")
+
+
+def _recent_files():
     pythoncom.CoInitialize()
     shell = win32com.client.Dispatch("WScript.Shell")
     found = {}

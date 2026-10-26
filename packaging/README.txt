@@ -9,7 +9,7 @@ Install (about 30 seconds, no admin needed)
   3. Look for the blue S in the tray, near the clock
 
 Use it
-  Press Ctrl+Alt+S anywhere, then speak (hold your Wispr Flow key) or type:
+  Press Ctrl+Alt+S anywhere (change it in the tray menu: Hotkey), then speak (hold your Wispr Flow key) or type:
     save my desk            gather everything that's open
     drop 3 / drop youtube   leave things out
     I was doing X, next Y   your note for later

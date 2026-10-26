@@ -12,7 +12,10 @@
 
 const APP = "http://127.0.0.1:47321";  // the Shiori app
 const LIVE = "ws://127.0.0.1:47322";
-const BROWSER = (navigator.userAgentData?.brands || []).some(b => b.brand === "Microsoft Edge") ? "edge" : "chrome";
+// Which browser this is, from the brands it reports (Vivaldi and others report as Chrome)
+const BRANDS = (navigator.userAgentData?.brands || []).map(b => b.brand);
+const BROWSER = BRANDS.includes("Microsoft Edge") ? "edge" : BRANDS.includes("Brave") ? "brave"
+  : BRANDS.includes("Opera") ? "opera" : "chrome";
 const COLORS = ["blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
 
 // ---- the live link ------------------------------------------------------------------

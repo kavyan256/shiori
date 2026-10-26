@@ -4,6 +4,10 @@ One JSON file per park name in data/stages/<name>.json. Saving under a name that
 already exists adds a new version to its history; resume uses the newest.
 Deleting moves the file to data/trash/, so a mistake can be undone by hand.
 
+Nothing grows forever: a desk keeps its newest KEEP_VERSIONS versions, the trash is
+emptied of desks deleted more than TRASH_DAYS ago, and desk pictures no desk uses
+any more are removed (see tidy(), run when Shiori starts).
+
 Run:
   python store.py list
   python store.py show coding
@@ -14,6 +18,7 @@ import os
 import re
 import shutil
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -21,6 +26,9 @@ import paths
 
 DATA_DIR = paths.DATA / "stages"  # see paths.py: ./data from source, %LOCALAPPDATA%\Shiori as Shiori.exe
 TRASH_DIR = DATA_DIR.parent / "trash"
+SHOTS_DIR = DATA_DIR.parent / "shots"  # desk pictures (see desk.py)
+KEEP_VERSIONS = 10  # older versions of a desk are dropped when a new one is saved
+TRASH_DAYS = 30     # deleted desks stay this long, so a mistake can still be put back
 
 
 def slug(name):
@@ -60,6 +68,7 @@ def park(name, items, note="", steps=None, cues=None, shot=""):
     if shot:
         snapshot["shot"] = shot  # a picture of the desk when you saved (see desk.py)
     stage["snapshots"].append(snapshot)
+    stage["snapshots"] = stage["snapshots"][-KEEP_VERSIONS:]  # their pictures go in the next tidy()
     save(stage)
     return snapshot
 
@@ -174,6 +183,40 @@ def set_step(name, index, done):
     snap["done"] = sorted(i for i in ticked if 0 <= i < len(snap["next_steps"]))
     save(stage)
     return snap["done"]
+
+
+def tidy(now=None):
+    """Empty old trash and remove desk pictures nothing uses. Returns (trash files, pictures) removed.
+    A picture is only removed once it's a day old, so one being saved right now is never touched."""
+    now = now or time.time()
+    removed_trash = 0
+    for f in TRASH_DIR.glob("*.json") if TRASH_DIR.exists() else []:
+        if now - f.stat().st_mtime > TRASH_DAYS * 86400:
+            f.unlink(missing_ok=True)
+            removed_trash += 1
+    if not SHOTS_DIR.exists():
+        return removed_trash, 0
+    used = set()
+    for f in [*DATA_DIR.glob("*.json"), *TRASH_DIR.glob("*.json")]:  # a trashed desk can be put back
+        try:
+            stage = json.loads(f.read_text(encoding="utf-8"))
+            used.update(s.get("shot", "") for s in stage.get("snapshots", []))
+        except (OSError, ValueError, AttributeError):
+            return removed_trash, 0  # can't tell what's used: remove nothing
+    removed_shots = 0
+    for f in SHOTS_DIR.glob("*.jpg"):
+        if f.name not in used and now - f.stat().st_mtime > 86400:
+            f.unlink(missing_ok=True)
+            removed_shots += 1
+    return removed_trash, removed_shots
+
+
+def delete_pictures():
+    """Every desk picture, gone (when you turn desk pictures off). Returns how many."""
+    shots = list(SHOTS_DIR.glob("*.jpg")) if SHOTS_DIR.exists() else []
+    for f in shots:
+        f.unlink(missing_ok=True)
+    return len(shots)
 
 
 def list_stages():

@@ -17,10 +17,11 @@ import win32process
 
 import browser
 import docs
+import limits
 import office
 import store
 import terminals
-from capture import app_id_of, list_windows
+from capture import EDITORS, app_id_of, list_windows
 from commands import app_name
 from items import kind, without_time
 
@@ -126,15 +127,17 @@ def plan(snapshot, name=""):
         app = w["app"]
         targets = w.get("targets", [])  # snapshots from before step 3 don't have it
 
-        if app in ("code.exe", "explorer.exe") and targets:
+        if (app in EDITORS or app == "explorer.exe") and targets:
             for target in targets:
                 label = f"{app_name(w)} {target.rsplit(chr(92), 1)[-1]}"
                 if (app, target.lower()) in open_targets:
                     already_open(label, open_targets[(app, target.lower())])
-                elif app == "code.exe" and not code_cmd:
-                    skipped.append(f"{app} {target} ('code' command not on PATH)")
-                elif app == "code.exe":
+                elif app == "code.exe" and code_cmd:
                     actions.append((f"VS Code   {target}", [code_cmd, "-n", target]))
+                elif app in EDITORS and w.get("exe") and os.path.exists(w["exe"]):  # Cursor, Windsurf…: their own exe
+                    actions.append((f"{app_name(w)}   {target}", [w["exe"], "-n", target]))
+                elif app in EDITORS:
+                    skipped.append(f"{app_name(w)} {target} (couldn't find the editor to open it)")
                 else:
                     actions.append((f"Explorer  {target}", ["explorer", target]))
                 open_targets.setdefault((app, target.lower()), [])  # don't open the same folder twice
@@ -185,11 +188,12 @@ def plan(snapshot, name=""):
                 found = docs.file_item({"app": win.app, "title": win.title, "exe": win.exe}, recent)
                 if found:
                     open_paths.add(found["path"].lower())
+        there = limits.exist([f["path"] for f in wanted_files if "://" not in f["path"]])
         for f in wanted_files:
             if f["path"].lower() in open_paths:
                 skipped.append(f"{f['title']} (already open)")
-            elif not os.path.exists(f["path"]) and "://" not in f["path"]:
-                skipped.append(f"{f['title']} (the file isn't there any more)")
+            elif "://" not in f["path"] and not there[f["path"]]:
+                skipped.append(f"{f['title']} (the file isn't there, or its drive isn't connected)")
             else:
                 place = f" · {f['where_text']}" if f.get("where_text") else ""
                 opener = office.reopen if f["app"] in office.APPS else docs.reopen

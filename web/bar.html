@@ -7,7 +7,7 @@
   /* ---- tokens ------------------------------------------------------------------ */
   :root {
     --bg: #14161b; --panel: #1d2027; --raised: #252933; --line: #2c303a; --line-strong: #3a3f4b;
-    --text: #ebebf0; --muted: #8b90a0; --faint: #5d6270;
+    --text: #ebebf0; --muted: #8a8fa0; --faint: #868b9b;  /* both pass 4.5:1 contrast on every panel */
     --accent: #7aa2f7; --accent-soft: rgba(122, 162, 247, .16); --ok: #9ece6a; --danger: #f7768e; --warn: #e0af68;
     --radius: 12px;
     --fast: 120ms; --base: 180ms; --slow: 260ms;
@@ -17,8 +17,8 @@
   }
   @media (prefers-color-scheme: light) {
     :root { --bg: #f6f7f9; --panel: #ffffff; --raised: #eceef3; --line: #e1e4ea; --line-strong: #cfd3dc;
-            --text: #1b1d22; --muted: #686d7c; --faint: #a3a7b3;
-            --accent: #3567e0; --accent-soft: rgba(53, 103, 224, .12); --ok: #2f8a3a; --danger: #c93a52; --warn: #a86b00; }
+            --text: #1b1d22; --muted: #5c6170; --faint: #6b7080;
+            --accent: #3567e0; --accent-soft: rgba(53, 103, 224, .12); --ok: #2b7f36; --danger: #b8344b; --warn: #966000; }
   }
   /* Windows "show animations" off: keep changes instant */
   @media (prefers-reduced-motion: reduce) {
@@ -40,7 +40,7 @@
   .brand { font-weight: 600; letter-spacing: .01em; }
   #status { margin-left: auto; color: var(--muted); font-size: 12px; transition: color var(--base); }
   #status.live { color: var(--accent); }
-  kbd { font: 11px "Segoe UI"; padding: 0 5px; border-radius: 4px; background: var(--raised); border: 1px solid var(--line); }
+  kbd { font: 12px "Segoe UI"; padding: 0 5px; border-radius: 4px; background: var(--raised); border: 1px solid var(--line); }
 
   /* ---- input ---------------------------------------------------------------------- */
   .ask { color: var(--accent); font-size: 13px; margin: 0 0 6px; animation: rise var(--base) var(--ease); }
@@ -75,9 +75,9 @@
 
   h2 { font: 600 16px "Segoe UI Variable Display", "Segoe UI"; margin: 0 0 8px; display: flex; gap: 8px; align-items: center; }
   h2 .sub { font: 400 12px "Segoe UI"; color: var(--muted); }
-  .tag { font: 600 11px "Segoe UI"; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 7px; }
-  .badge { font: 600 11px "Segoe UI"; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 8px; }
-  .label { color: var(--muted); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; margin: 12px 0 4px; }
+  .tag { font: 600 12px "Segoe UI"; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 7px; }
+  .badge { font: 600 12px "Segoe UI"; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 8px; }
+  .label { color: var(--muted); font-size: 12px; letter-spacing: .05em; text-transform: uppercase; margin: 12px 0 4px; }
   .msg { margin-top: 8px; font-size: 12px; color: var(--ok); animation: rise var(--base) var(--ease); }
   .warn { margin-top: 8px; font-size: 12px; color: var(--muted); }
   .foot { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -107,7 +107,7 @@
   .note.voice .mic svg { width: 16px; height: 16px; fill: none; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; }
   .note.voice .vtitle { font-size: 15px; font-weight: 600; }
   .note.voice .vhow { font-size: 13px; color: var(--muted); margin-top: 3px; }
-  .nlabel { font-size: 11px; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 4px; }
+  .nlabel { font-size: 12px; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 4px; }
   button:disabled { opacity: .45; cursor: not-allowed; }
 
   /* rows */
@@ -117,14 +117,18 @@
          cursor: pointer; transition: background var(--fast); }
   .row:hover { background: var(--raised); }
   .row.sel { background: var(--raised); box-shadow: inset 2px 0 0 var(--accent); }
+  /* keyboard users can always see where they are (mouse clicks don't show the ring) */
+  button:focus-visible, [data-say]:focus-visible, [data-toggle]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .row.static { cursor: default; } .row.static:hover { background: none; }
-  .row .num { color: var(--faint); width: 18px; text-align: right; font-size: 11px; flex: none; }
+  .row .num { color: var(--faint); width: 18px; text-align: right; font-size: 12px; flex: none; }
   .row .title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
                 background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 0 1px;
                 transition: color var(--base), background-size var(--base) var(--ease); }
   .row .meta { color: var(--muted); font-size: 12px; white-space: nowrap; margin-left: auto; }
   .row.off .title { color: var(--faint); background-size: 100% 1px; }   /* strike-through draws left to right */
   .row.off .avatar { opacity: .4; }
+  img.avatar { background: none; object-fit: contain; border-radius: 0; }
+  .ghead img.gicon { width: 14px; height: 14px; flex: none; }
   .row.flash { animation: flash 480ms var(--ease); }
   @keyframes flash { 0%, 40% { background: var(--accent-soft); } }
   .avatar { width: 20px; height: 20px; border-radius: 6px; flex: none; font: 700 10px/20px "Segoe UI"; text-align: center;
@@ -141,7 +145,7 @@
   .row.flash .check { animation: pop 240ms var(--spring); }
 
   /* collapsible groups */
-  .ghead { display: flex; align-items: center; gap: 8px; padding: 8px 10px 4px; color: var(--muted); font-size: 11px;
+  .ghead { display: flex; align-items: center; gap: 8px; padding: 8px 10px 4px; color: var(--muted); font-size: 12px;
            letter-spacing: .05em; text-transform: uppercase; cursor: pointer; }
   .chev { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2.4; fill: none; transition: transform var(--base) var(--ease); }
   .group.collapsed .chev { transform: rotate(-90deg); }
@@ -172,7 +176,7 @@
   /* first-run guide */
   .guide { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px 12px; background: var(--panel); }
   .guide-head { display: flex; align-items: center; justify-content: space-between; color: var(--muted);
-                font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+                font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
   button.ghost { background: none; border: 0; color: var(--muted); padding: 2px 6px; font-size: 12px; text-transform: none; letter-spacing: 0; }
   button.ghost:hover { color: var(--text); }
   .guide-bar { height: 3px; border-radius: 3px; background: var(--raised); margin: 6px 0 8px; overflow: hidden; }
@@ -238,15 +242,15 @@
 <div class="wrap" id="wrap">
   <header>
     <div class="logo">S</div><div class="brand">Shiori</div>
-    <div id="status">Hold your <kbd>Wispr key</kbd> to speak · or type</div>
+    <div id="status" role="status" aria-live="polite">Hold your <kbd>Wispr key</kbd> to speak · or type</div>
   </header>
   <div class="ask" id="ask" hidden></div>
   <div class="field" id="field">
-    <textarea id="q" spellcheck="false" rows="1"></textarea>
+    <textarea id="q" spellcheck="false" rows="1" aria-label="Tell Shiori what to do, for example: save my desk"></textarea>
     <div class="countdown"><i></i></div>
   </div>
   <div class="status-row" id="chips"></div>
-  <div id="view"></div>
+  <div id="view" aria-live="polite"></div>
 </div>
 
 <script>
@@ -262,7 +266,8 @@ const STATUS_IDLE = 'Hold your <kbd>Wispr key</kbd> to speak · or type';
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const hue = s => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
 const color = s => `hsl(${hue(s)} 60% 55%)`;
-const avatar = name => `<div class="avatar" style="background:hsl(${hue(name)} 60% 55% / .18);color:hsl(${hue(name)} 60% 50%)">${esc(name[0] || "?").toUpperCase()}</div>`;
+// An app's real icon (from Windows) when there is one, else a coloured letter
+const avatar = (name, icon = "") => icon ? `<img class="avatar" src="${icon}" alt="">` : `<div class="avatar" style="background:hsl(${hue(name)} 60% 55% / .18);color:hsl(${hue(name)} 60% 50%)">${esc(name[0] || "?").toUpperCase()}</div>`;
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const CHECK = '<svg viewBox="0 0 12 12"><path d="M2.5 6.5l2.2 2.2L9.5 3.8"/></svg>';
 const CHEVRON = '<svg class="chev" viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3"/></svg>';
@@ -375,7 +380,7 @@ function row(it, clickable) {
   const meta = it.meta || (it.tab && it.host ? it.host.replace(/^www\./, "") : "");
   return `<div class="row ${it.keep ? "" : "off"} ${clickable ? "" : "static"}" ${clickable ? `data-toggle="${it.i}" data-nav` : ""}>
     ${clickable ? `<span class="check">${CHECK}</span>` : ""}${it.n ? `<span class="num">${it.n}</span>` : ""}
-    ${avatar(icon)}<span class="title">${named ? (rowTitle(it.app, it.title) ? `${esc(it.app)} — ${esc(rowTitle(it.app, it.title))}` : esc(it.app)) : esc(it.title)}</span>
+    ${avatar(icon, it.icon)}<span class="title">${named ? (rowTitle(it.app, it.title) ? `${esc(it.app)} — ${esc(rowTitle(it.app, it.title))}` : esc(it.app)) : esc(it.title)}</span>
     ${meta ? `<span class="meta">${esc(meta)}</span>` : ""}</div>`;
 }
 
@@ -386,7 +391,7 @@ function groupsBlock(groups, clickable) {
     return `<div class="group ${collapsed.has(g.label) ? "collapsed" : ""}" data-group="${esc(g.label)}">
       <div class="ghead" data-collapse="${esc(g.label)}">${CHEVRON}
         ${clickable ? `<span class="check gcheck ${mark}" data-groupcheck="${esc(g.label)}" title="Tick or untick all">${CHECK}</span>` : ""}
-        <span>${esc(g.label)}</span><span class="count">${clickable ? `${on} of ${g.items.length}` : g.items.length}</span></div>
+        ${g.icon ? `<img class="gicon" src="${g.icon}" alt="">` : ""}<span>${esc(g.label)}</span><span class="count">${clickable ? `${on} of ${g.items.length}` : g.items.length}</span></div>
       <div class="grows"><div>${g.items.map(it => row(it, clickable)).join("")}</div></div></div>`;
   }).join("");
 }
@@ -409,16 +414,20 @@ function parkRow(p, i) {
 }
 
 // First-run guide: three steps that tick off as you do them; the next one is highlighted
+let hotkey = "Ctrl+Alt+S";  // what the tray's Hotkey menu is set to (the home view says)
+const keysOf = label => label.split("+").map(k => `<kbd>${esc(k)}</kbd>`).join("");
 const GUIDE = [
-  ["hotkey", "Open Shiori from anywhere", "<kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>S</kbd>"],
+  ["hotkey", "Open Shiori from anywhere", () => keysOf(hotkey)],
   ["saved", "Save your desk", "say or type <b>save my desk</b>, then <b>save</b>"],
   ["resumed", "Bring it back later", "<b>resume</b>: the last one, or <b>resume coding</b>"],
 ];
 function guideCard(progress) {
+  if (progress.keys) hotkey = progress.keys;
   const done = GUIDE.filter(([key]) => progress[key]).length;
   const next = GUIDE.findIndex(([key]) => !progress[key]);
   if (done === GUIDE.length - 1) {
-    const [, title, how] = GUIDE[next];
+    const [, title, said] = GUIDE[next];
+    const how = typeof said === "function" ? said() : said;
     return `<div class="guide compact"><span class="gdone">✓ ${done} of 3</span>
       <span class="gtitle">Last step: ${title.toLowerCase()} · ${how}</span>
       <button class="ghost" data-say="hide guide">Hide</button></div>`;
@@ -428,8 +437,10 @@ function guideCard(progress) {
       <button class="ghost" data-say="hide guide">Hide</button></div>
     <div class="guide-bar"><i style="width:${(done / 3) * 100}%"></i></div>
     ${GUIDE.map(([key, title, how], i) => `<div class="gstep ${progress[key] ? "done" : ""} ${i === next ? "next" : ""}" style="--i:${i}">
-      <span class="check">${CHECK}</span><span class="gtitle">${title}</span><span class="ghow">${how}</span></div>`).join("")}
+      <span class="check">${CHECK}</span><span class="gtitle">${title}</span><span class="ghow">${typeof how === "function" ? how() : how}</span></div>`).join("")}
     <div class="gfoot">Typing works too, no Wispr needed. With Wispr Flow: hold your <kbd>Wispr key</kbd> and speak.</div>
+    ${progress.pictures ? `<div class="gfoot">Each save keeps a small picture of your screen, only on this PC, to show when you come back.
+      Turn it off in the tray menu: <b>Keep desk pictures</b>. The hotkey can be changed there too.</div>` : ""}
   </div>`;
 }
 
@@ -748,6 +759,7 @@ window.addEventListener("blur", () => setTimeout(hideIfLeft, 0));
 // ---- called from Python ------------------------------------------------------------------
 window.Shiori = {
   show(v) { if (!busy) render(v); },  // Python pushing an update (e.g. tabs arrived)
+  setHotkey(label) { if (label) hotkey = label; },  // changed in the tray menu
   open() {
     stopCountdown();
     q.value = "";

@@ -19,15 +19,20 @@ import win32con
 import win32gui
 import win32process
 
+import limits
+
 # --- Which group each app goes in -------------------------------------------
 # FULL  = we can reopen the exact thing inside it (folder, tabs, file, command)
 # TITLE = the title usually holds a filename we can look up in Recent files
 # SHOT  = we can only relaunch the app, so we keep a screenshot as a cue
 # SKIP  = system windows and stuff that isn't "work"
+# VS Code and the editors built from it keep the same records, each in its own folder
+EDITORS = {"code.exe": "Code", "code - insiders.exe": "Code - Insiders", "cursor.exe": "Cursor",
+           "windsurf.exe": "Windsurf"}
 FULL_APPS = {
-    "code.exe",                                   # VS Code -> folder
+    *EDITORS,                                     # VS Code, Cursor… -> folder
     "explorer.exe",                               # File Explorer -> folder
-    "chrome.exe", "msedge.exe",                   # browser -> tabs (extension, step 9)
+    "chrome.exe", "msedge.exe", "brave.exe", "opera.exe",  # browser -> tabs (extension)
     "windowsterminal.exe", "cmd.exe",
     "powershell.exe", "pwsh.exe",                 # terminal -> saved command
     "winword.exe", "excel.exe", "powerpnt.exe",   # Office -> file path via COM
@@ -128,7 +133,9 @@ def group_of(win):
 
 
 # --- Finding what's open inside VS Code and Explorer ---------------------------
-VSCODE_STORAGE = Path(os.environ["APPDATA"]) / "Code" / "User" / "globalStorage"
+def editor_storage(app="code.exe"):
+    """Where VS Code (or Cursor, Windsurf…) keeps its list of open and recent folders."""
+    return Path(os.environ["APPDATA"]) / EDITORS[app] / "User" / "globalStorage"
 
 
 def uri_to_path(uri):
@@ -139,15 +146,16 @@ def uri_to_path(uri):
     return str(Path(unquote(parsed.path).lstrip("/")))
 
 
-def vscode_known_folders():
-    """Folder paths VS Code remembers: open windows, backups, recently opened.
+def vscode_known_folders(app="code.exe"):
+    """Folder paths VS Code (or a sibling editor) remembers: open windows, backups, recently opened.
 
     The window title only says 'file - showme - Visual Studio Code', so we
     match that folder name against these full paths.
     """
     uris = []
+    storage_dir = editor_storage(app)
     try:
-        storage = json.loads((VSCODE_STORAGE / "storage.json").read_text(encoding="utf-8"))
+        storage = json.loads((storage_dir / "storage.json").read_text(encoding="utf-8"))
         state = storage.get("windowsState", {})
         uris.append(state.get("lastActiveWindow", {}).get("folder"))
         uris += [w.get("folder") for w in state.get("openedWindows", [])]
@@ -156,7 +164,7 @@ def vscode_known_folders():
         pass
     try:
         # mode=ro so we never lock or change VS Code's own database
-        db = sqlite3.connect(f"file:{VSCODE_STORAGE / 'state.vscdb'}?mode=ro", uri=True)
+        db = sqlite3.connect(f"file:{(storage_dir / 'state.vscdb').as_posix()}?mode=ro", uri=True)
         row = db.execute(
             "SELECT value FROM ItemTable WHERE key = 'history.recentlyOpenedPathsList'"
         ).fetchone()
@@ -198,8 +206,8 @@ def list_windows():
     """Every real top-level window, top of the stack first."""
     handles = []
     win32gui.EnumWindows(lambda hwnd, _: handles.append(hwnd), None)
-    known_vscode = vscode_known_folders()
-    explorer = explorer_folders()
+    known_folders = {}  # editor -> its remembered folders, read only if that editor is open
+    explorer = limits.within(limits.OFFICE_SECONDS, explorer_folders, default={}, what="Explorer folders")
 
     windows = []
     for hwnd in handles:
@@ -224,8 +232,10 @@ def list_windows():
         win.group = group_of(win)
         if "\\windowsapps\\" in exe.lower():
             win.app_id = app_id_of(pid)
-        if win.app == "code.exe":
-            folder = vscode_folder(win.title, known_vscode)
+        if win.app in EDITORS:
+            if win.app not in known_folders:
+                known_folders[win.app] = vscode_known_folders(win.app)
+            folder = vscode_folder(win.title, known_folders[win.app])
             win.targets = [folder] if folder else []
         elif win.group == "FULL" and win.app == "explorer.exe":
             win.targets = explorer.get(hwnd, [])

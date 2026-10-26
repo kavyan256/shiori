@@ -7,16 +7,16 @@ from pathlib import Path
 
 from PIL import ImageGrab
 
-import paths
 import store
 
-SHOTS = paths.DATA / "shots"
+SHOTS = store.SHOTS_DIR
 
 
-def grab(width=None):
-    """The main screen right now; scaled down to `width` pixels across if given
-    (opening the bar skips that: it's done later, only if you actually save)."""
-    image = ImageGrab.grab()
+def grab(width=None, bbox=None):
+    """The screen right now (bbox: one monitor's (left, top, right, bottom); default the main one),
+    scaled down to `width` pixels across if given (opening the bar skips that: it's done later,
+    only if you actually save)."""
+    image = ImageGrab.grab(bbox=bbox, all_screens=bool(bbox))
     if width:
         image.thumbnail((width, width))
     return image

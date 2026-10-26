@@ -62,8 +62,8 @@
 </head>
 <body>
 <div class="backdrop" id="backdrop"></div><div class="shade"></div>
-<main id="main"></main>
-<figure id="shot" hidden><figcaption>Your desk when you saved it</figcaption><img id="shotimg" alt=""></figure>
+<main id="main" role="dialog" aria-label="Your note for this desk" aria-live="assertive"></main>
+<figure id="shot" hidden><figcaption>Your desk when you saved it</figcaption><img id="shotimg" alt="A picture of your screen when you saved this desk"></figure>
 <div class="hint">Click anywhere or press any key to get to work</div>
 <script>
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

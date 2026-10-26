@@ -1,0 +1,13 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: windows-latest  # Shiori is a Windows app: the tests use the real Windows APIs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q

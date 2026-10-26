@@ -12,6 +12,8 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import limits
+
 GIT = shutil.which("git")
 
 
@@ -47,9 +49,14 @@ def cue(root):
 
 
 def for_folders(folders):
-    """Cues for every distinct repo among these folders (checked in parallel)."""
+    """Cues for every distinct repo among these folders (checked in parallel). Given up on
+    after a few seconds: a folder on an offline network drive can hang the search for .git."""
     if not GIT:
         return []
+    return limits.within(6, _for_folders, folders, default=[], what="git cues")
+
+
+def _for_folders(folders):
     roots = list(dict.fromkeys(r for r in map(repo_root, folders) if r))
     with ThreadPoolExecutor(max_workers=4) as pool:
         return [c for c in pool.map(cue, roots) if c]
@@ -63,7 +70,7 @@ def folders_of(items):
             continue
         if item.get("kind") == "terminal":
             out.append(item["folder"])
-        elif item.get("app") == "code.exe":
+        elif item.get("app") in ("code.exe", "code - insiders.exe", "cursor.exe", "windsurf.exe"):
             out += item.get("targets", [])
     return out
 
@@ -71,8 +78,9 @@ def folders_of(items):
 def compare(saved):
     """Saved cues next to now: adds 'now_branch' where you've switched branch since."""
     out = []
+    there = limits.exist([c["path"] for c in saved])
     for c in saved:
-        now = cue(Path(c["path"])) if GIT and Path(c["path"]).exists() else None
+        now = cue(Path(c["path"])) if GIT and there[c["path"]] else None
         out.append({**c, "now_branch": now["branch"] if now and now["branch"] != c["branch"] else ""})
     return out
 

@@ -18,12 +18,14 @@ import time
 import browser
 import cues
 import desk
+import icons
 import restore
 import store
 import clear
 import naming
 import office
 import onboarding
+import settings
 from capture import list_windows
 from commands import (DELETE_AGAIN, NO, YES, app_name, clean_name, cut_off, fix_command_word, parse, parse_draft,
                       pick_windows)
@@ -375,7 +377,7 @@ class Controller:
                 "suggested": "" if d["name"] else self.suggested_name(), "clear": d.get("clear", False),
                 "groups": groups(d["items"]), "message": message, "cues": cue_rows(ticked_cues(d)),
                 "no_tabs": sorted({app_name(i) for i in d["items"]
-                                   if i["app"] in ("chrome.exe", "msedge.exe") and kind(i) == "window"})}
+                                   if i["app"] in browser.BROWSER_OF_APP and kind(i) == "window"})}
 
     # --- your parks -------------------------------------------------------------------
     def home(self, message=""):
@@ -390,8 +392,10 @@ class Controller:
                 "next": todo[0] if todo else "",
                 "items": len(kept), "versions": len(s["snapshots"]), "preset": bool(s.get("pinned")),
             })
-        return {"view": "home", "parks": parks, "draft": bool(self.draft), "message": message,
-                "guide": onboarding.guide()}
+        guide = onboarding.guide()
+        if guide:  # the guide shows your hotkey, and whether desk pictures are on
+            guide = {**guide, "keys": settings.get("hotkey"), "pictures": settings.get("desk_pictures")}
+        return {"view": "home", "parks": parks, "draft": bool(self.draft), "message": message, "guide": guide}
 
     def desk_named(self, spoken, verb):
         """(name, None), or (None, a view to show instead). A scrap of a name ('resume s': Enter or
@@ -575,11 +579,19 @@ def groups(items, numbered=True):
         label = f"{item['browser'].title()} · window {item['window']}" if k == "tab" else labels[k]
         out.setdefault(label, []).append({
             "i": i, "n": i + 1 if numbered else None, "app": app_name(item), "title": item["title"],
+            # the app's real icon; a tab shows its site's letter (the browser's icon heads the group)
+            "icon": "" if k == "tab" else icons.for_item(item),
             "keep": item.get("keep", True), "tab": k == "tab", "kind": k,
             "host": item.get("url", "").split("/")[2] if item.get("url", "").count("/") >= 2 else "",
             "meta": row_meta(item),
         })
-    return [{"label": label, "items": rows} for label, rows in out.items() if rows]
+    return [{"label": label, "items": rows, "icon": group_icon(items, rows)} for label, rows in out.items() if rows]
+
+
+def group_icon(items, rows):
+    """A browser window's group is headed by that browser's icon (Chrome, Edge…)."""
+    first = items[rows[0]["i"]]
+    return icons.for_item(first, browser.browser_exe) if kind(first) == "tab" else ""
 
 
 def ticked_cues(draft):

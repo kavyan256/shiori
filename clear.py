@@ -12,7 +12,7 @@ import win32gui
 import browser
 import docs
 import office
-from capture import list_windows
+from capture import EDITORS, list_windows
 from items import kind
 
 
@@ -51,7 +51,7 @@ def close_items(items):
             wins = [w for w in open_now if w.app == app and wanted & {t.lower() for t in w.targets}]
             to_close |= {w.hwnd for w in wins}
             closed += [item["title"][:40]] if wins else []
-        elif app == "code.exe":  # VS Code on a single file: match the title
+        elif app in EDITORS:  # VS Code on a single file: match the title
             wins = [w for w in open_now if w.app == app and w.title == item["title"]]
             to_close |= {w.hwnd for w in wins}
             closed += [item["title"][:40]] if wins else []

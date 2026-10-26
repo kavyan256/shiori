@@ -82,8 +82,9 @@ STARTS_A_NOTE = {"i", "i'm", "im", "i've", "i'll", "we", "we're", "the", "a", "a
                  "working", "fixing", "doing", "reading", "writing", "studying", "next", "then", "and", "it",
                  "it's", "this", "that", "currently", "still", "now", "today", "tomorrow", "need", "have", "to"}
 NOT_A_MATCH = {"the", "and", "window", "windows", "tab", "tabs", "number", "app", "one", "all"}
-FRIENDLY = {"code": "VS Code", "windowsterminal": "Terminal", "explorer": "Explorer",
-            "chrome": "Chrome", "msedge": "Edge", "claude": "Claude",
+FRIENDLY = {"code": "VS Code", "code - insiders": "VS Code Insiders", "cursor": "Cursor", "windsurf": "Windsurf",
+            "windowsterminal": "Terminal", "explorer": "Explorer",
+            "chrome": "Chrome", "msedge": "Edge", "brave": "Brave", "opera": "Opera", "claude": "Claude",
             "excel": "Excel", "winword": "Word", "powerpnt": "PowerPoint"}
 
 

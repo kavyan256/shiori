@@ -1,6 +1,6 @@
 """The first-run guide: three steps that tick off as you actually do them.
 
-  1. open Shiori with the hotkey     (ticked when you press Ctrl+Alt+S)
+  1. open Shiori with the hotkey     (ticked when you press it, Ctrl+Alt+S by default)
   2. save my desk, then save       (ticked when a desk is saved)
   3. resume it                      (ticked when you resume or start one)
 

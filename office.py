@@ -8,7 +8,7 @@ running. On resume Shiori asks Office to open each file and go back to the same
 sheet and cell (Excel) or slide (PowerPoint).
 
 Note: an Office app you started yourself only answers COM after it has lost focus
-once. Pressing Ctrl+Alt+S does exactly that, so parking sees your files.
+once. Pressing Shiori's hotkey does exactly that, so parking sees your files.
 
 Limits: files never saved ("Book1") have no path, so they can't be reopened; a file
 with unsaved changes reopens as last saved (the draft warns you).
@@ -23,6 +23,8 @@ import pythoncom
 import win32com.client
 import win32con
 import win32gui
+
+import limits
 
 log = logging.getLogger("shiori")
 
@@ -55,7 +57,12 @@ def _describe_where(where):
 
 
 def current():
-    """Every file open in Excel, Word and PowerPoint right now (only apps that are running)."""
+    """Every file open in Excel, Word and PowerPoint right now (only apps that are running).
+    Gives up after a few seconds: Office with a dialog open can stop answering (see limits.py)."""
+    return limits.within(limits.OFFICE_SECONDS, _current, default=[], what="Office: which files are open")
+
+
+def _current():
     pythoncom.CoInitialize()
     out = []
     for exe, (com_name, collection) in APPS.items():
@@ -81,7 +88,11 @@ def current():
 
 
 def close(path):
-    """Close an open Office file if it has no unsaved changes. True if closed."""
+    """Close an open Office file if it has no unsaved changes. True if closed (False if Office didn't answer)."""
+    return limits.within(limits.OFFICE_SECONDS, _close, path, default=False, what="Office: close a file")
+
+
+def _close(path):
     pythoncom.CoInitialize()
     for exe, (com_name, collection) in APPS.items():
         try:
