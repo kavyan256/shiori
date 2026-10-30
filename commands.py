@@ -35,6 +35,10 @@ PARK = re.compile(r"^(?:park|new park|desk|disk|(?:save|new|park)(?:\s+(?:my|thi
 RESUME_LAST = re.compile(r"^(?:resume|continue|go back|back to work|pick up where i left off)"
                          r"(?:\s+(?:it|that|this|last|latest|the (?:last|latest)(?: one| park| desk)?|my (?:last|latest)(?: one| park| desk)?"
                          r"|where i left off))?$", re.I)
+RECAP = re.compile(r"^(?:what was i (?:doing|working on|up to)|where was i|where did i leave off|what'?s next|recap)$", re.I)
+ADD_NOTE = re.compile(r"^add to (?:my|the) note[\s,:.-]+(?P<note>.+)$", re.I | re.S)
+SWITCH = re.compile(r"^(?:switch|move|change) to\s+(?P<name>.+)$", re.I)
+WEEK = re.compile(r"^(?:my week|this week|weekly view|show (?:me )?my week|what did i (?:work on|do) this week)$", re.I)
 SEARCH = re.compile(r"^(?:find|search(?:\s+(?:my\s+desks\s+)?for)?|look\s+(?:for|up)|which\s+desk\s+(?:has|had|have|is|was))\s+(?P<what>.+)$", re.I | re.S)
 # after a restart or a crash: what Shiori quietly kept (see autosave.py)
 LAST_SESSION = re.compile(r"^(?:(?:resume|restore|recover|reopen|bring back|get back)\s+)?(?:my\s+|the\s+)?(?:last|previous)\s+session$", re.I)
@@ -234,6 +238,14 @@ def parse(text):
         return ("last_session",)
     if FORGET_SESSION.match(text):
         return ("forget_session",)
+    if RECAP.match(text):
+        return ("recap",)
+    if WEEK.match(text):
+        return ("week",)
+    if m := ADD_NOTE.match(text):
+        return ("add_note", m["note"])
+    if m := SWITCH.match(text):
+        return ("switch", clean_name(m["name"]))
     if m := SEARCH.match(text):
         return ("search", m["what"])
     short, clear = split_clear(text)

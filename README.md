@@ -58,6 +58,10 @@ follow the three steps. Without it Shiori still works; browsers show only their 
 | `pin this` · `start dsa` | Make a preset you can start any time |
 | `tick 1` | Tick off a next step while reading your note |
 | `undo` | Take back the last resume, clear or delete |
+| `what was I doing` | Your note and next steps, nothing reopened |
+| `add to my note …` | Add a thought to the saved desk |
+| `switch to dsa` | Save and clear this desk, resume that one |
+| `my week` | Recent desks and what's left to do |
 | `find the TCP notes` | Search everything in your desks |
 | `restore last session` | Bring back your desk after a restart or a crash |
 

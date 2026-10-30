@@ -14,6 +14,7 @@ Views:
 import difflib
 import re
 import time
+from datetime import datetime, timedelta
 
 import autosave
 import browser
@@ -50,6 +51,7 @@ class Controller:
         self.checking_name = None   # a long name waiting for "yes": {"name", "clear"}
         self.viewing = None         # the park on screen, for "pin this"
         self.last_action = None     # what "undo" would take back: {"kind", "name", "at", ...}
+        self.working_on = None      # the desk you last resumed, for "switch to" and "add to my note"
         self.desk_shot = None       # the screen as it was when the bar last opened, kept with the next save
 
     def opened(self):
@@ -126,6 +128,14 @@ class Controller:
                 return self.pin(command[1])
             if command[0] == "unpin":
                 return self.unpin(command[1])
+            if command[0] == "recap":
+                return self.recap()
+            if command[0] == "week":
+                return self.week()
+            if command[0] == "add_note":
+                return self.add_note(command[1])
+            if command[0] == "switch":
+                return self.switch(command[1])
             if command[0] == "search":
                 return self.search(command[1])
             if command[0] == "last_session":
@@ -468,7 +478,7 @@ class Controller:
         if self.draft:
             notes.append("Your unsaved desk is kept: say “save my desk” to go back to it.")
         snap = store.latest(name)
-        self.viewing = name  # so "tick 1" works on the note you're reading
+        self.viewing = self.working_on = name  # so "tick 1" works on the note you're reading
         self.remember_resume(name, snap["windows"])
         opened, skipped = restore.reopen(snap, name)
         layout.restore_later(snap, self.last_action["before"])
@@ -476,6 +486,64 @@ class Controller:
                 "note": snap["brain_dump"], "steps": snap["next_steps"], "done": snap.get("done", []),
                 "opened": opened, "skipped": skipped, "shot": snap.get("shot", ""), "message": " ".join(notes),
                 "cues": cue_rows(cues.compare(snap.get("cues", [])))})
+
+    def current_desk(self):
+        """The desk you mean by "my note": the one on screen, the one you resumed, else the newest."""
+        stages = store.list_stages()
+        return self.viewing or self.working_on or (stages[0]["name"] if stages else None)
+
+    def recap(self):
+        """'what was I doing?': your note and next steps, with nothing reopened."""
+        name = self.current_desk()
+        if not name:
+            return self.home("No desks saved yet. Say “save my desk” to save what's open.")
+        snap = store.latest(name)
+        todo = [s for n, s in enumerate(snap["next_steps"]) if n not in snap.get("done", [])]
+        lines = [snap["brain_dump"] or "No note on this desk."] + [f"Next: {s}" for s in todo]
+        return {"view": "message", "title": f"{name} · saved {store.ago(snap['parked_at'])}",
+                "lines": lines + [{"text": f"Resume {name}", "say": f"resume {name}"}]}
+
+    def add_note(self, text):
+        """'add to my note …': a thought added to the saved desk, without saving it again."""
+        name = self.current_desk()
+        if not name:
+            return self.home("No desks saved yet. Say “save my desk” first.")
+        stage = store.load(name)
+        last = stage["snapshots"][-1]
+        last["brain_dump"] = f"{last['brain_dump']} {text}".strip()
+        store.save(stage)
+        return self.view(name, "Added to your note.")
+
+    def week(self):
+        """The desks you saved in the last 7 days, with what's still to do."""
+        since = (datetime.now() - timedelta(days=7)).isoformat(timespec="seconds")
+        lines = []
+        for stage in store.list_stages():
+            last = stage["snapshots"][-1]
+            if last["parked_at"] < since:
+                continue
+            todo = [s for n, s in enumerate(last["next_steps"]) if n not in last.get("done", [])]
+            detail = f"{len(todo)} to do · next: {todo[0]}" if todo else "nothing left to do"
+            lines.append({"text": f"{stage['name']} · {detail}", "say": f"view {stage['name']}", "park": True})
+        return {"view": "message", "title": "Your week · click or say one",
+                "lines": lines or ["No desks saved in the last 7 days."]}
+
+    def switch(self, spoken):
+        """'switch to dsa': save and clear this desk, then resume that one."""
+        target, instead = self.desk_named(spoken, "switch to")
+        if instead:
+            return instead
+        items, name = current_items(), self.working_on
+        if name == target or not any(i["keep"] for i in items):
+            return self.resume(target)
+        old = store.latest(name) if name else None
+        name = name or "before switching"
+        store.park(name, items, old["brain_dump"] if old else "", old["next_steps"] if old else [],
+                   old.get("cues", []) if old else [], layout=layout.of(list_windows()))
+        clear.close_items(items)
+        view = self.resume(target)
+        view["message"] = f"Saved {name} first. {view['message']}".strip()
+        return view
 
     def search(self, words):
         """'find the TCP notes': the desks with those words anywhere in them."""
@@ -605,6 +673,10 @@ class Controller:
                           {"text": "Resume (the last one)", "say": "resume"} if known else "Resume (the last one)",
                           {"text": f"Resume {example}", "say": f"resume {example}"} if known else f"Resume {example}",
                           {"text": "Show my desks", "say": "show my desks"},
+                          {"text": "What was I doing?", "say": "what was i doing"},
+                          "Switch to dsa  (saves this desk, clears it, resumes dsa)",
+                          "Add to my note: check the labels",
+                          {"text": "My week", "say": "my week"},
                           "Find the TCP notes  (searches everything in your desks)",
                           {"text": "Restore last session (after a restart or a crash)", "say": "restore last session"},
                           {"text": f"View {example}", "say": f"view {example}"} if known else f"View {example}",

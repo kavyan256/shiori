@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 · 30 Oct 2026
+
+- **What was I doing?** Your note and next steps, with nothing reopened.
+- **Add to my note:** add a thought to a saved desk without saving it again.
+- **Switch to dsa:** saves this desk, clears it, and resumes that one.
+- **My week:** desks saved in the last 7 days and what's left to do.
+
 ## 1.2.1 · 30 Oct 2026
 
 - **Browser windows stay separate:** two saved windows come back as two, each with its own tab group (extension 0.8.0).
