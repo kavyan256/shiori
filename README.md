@@ -14,6 +14,20 @@ your note to you, full screen, over the desk it just reopened.
 Built for the [No Hands: Wispr Challenge](https://www.wemakedevs.org/wispr). Every step works
 by voice with [Wispr Flow](https://wisprflow.ai); typing works the same.
 
+## Try it in 30 seconds
+
+Windows 10 or 11, no account, no admin, and no Wispr Flow needed: you can type every command.
+
+1. [Download Shiori-setup.zip](https://github.com/kavyan256/shiori/releases/latest/download/Shiori-setup.zip), Extract All, and double-click **Install Shiori.cmd**. If Windows warns you: More info, then Run anyway.
+2. Open a few apps, press `Ctrl` `Alt` `S`, type `save my desk`, then `save as test and clear`.
+3. Press `Ctrl` `Alt` `S` again and type `resume test`.
+
+For every browser tab, not just the front one, add the extension: tray icon, **Set up browser tabs…**
+
+On a Mac or Linux? Shiori is Windows only for now: [watch the demo](https://kavyan256.github.io/shiori/#demo).
+
+![Resuming a desk: the note comes first, then everything is back](docs/img/s-resume.gif)
+
 ![Shiori's command bar, saving an AI lab desk](docs/img/s-draft.png)
 
 ![After a resume: your note in big type over your dimmed desk](docs/img/s-overlay.jpg)

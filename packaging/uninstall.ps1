@@ -1,6 +1,6 @@
 # Remove Shiori: the app, its Start menu and Start-with-Windows shortcuts.
-# Your parks stay in %LOCALAPPDATA%\Shiori unless you add -RemoveParks.
-param([switch]$RemoveParks)
+# Your desks stay in %LOCALAPPDATA%\Shiori unless you add -RemoveDesks.
+param([Alias("RemoveParks")][switch]$RemoveDesks)
 $ErrorActionPreference = "Stop"
 $target = $PSScriptRoot
 
@@ -18,9 +18,9 @@ foreach ($folder in "WindowsPowerShell", "PowerShell") {
         if ($cleaned -cne $text) { Set-Content -LiteralPath $profilePath -Value $cleaned -NoNewline }
     }
 }
-if ($RemoveParks) { Remove-Item (Join-Path $env:LOCALAPPDATA "Shiori") -Recurse -Force -ErrorAction SilentlyContinue }
+if ($RemoveDesks) { Remove-Item (Join-Path $env:LOCALAPPDATA "Shiori") -Recurse -Force -ErrorAction SilentlyContinue }
 
 # A script can't delete the folder it runs from: hand that to a short-lived helper
 Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoProfile", "-Command",
     "Start-Sleep 2; Remove-Item -LiteralPath '$target' -Recurse -Force"
-Write-Host "Shiori removed." $(if ($RemoveParks) { "Your parks were deleted too." } else { "Your parks are kept in $env:LOCALAPPDATA\Shiori." })
+Write-Host "Shiori removed." $(if ($RemoveDesks) { "Your desks were deleted too." } else { "Your desks are kept in $env:LOCALAPPDATA\Shiori." })
