@@ -14,8 +14,10 @@ const APP = "http://127.0.0.1:47321";  // the Shiori app
 const LIVE = "ws://127.0.0.1:47322";
 // Which browser this is, from the brands it reports (Vivaldi and others report as Chrome)
 const BRANDS = (navigator.userAgentData?.brands || []).map(b => b.brand);
-const BROWSER = BRANDS.includes("Microsoft Edge") ? "edge" : BRANDS.includes("Brave") ? "brave"
+const BROWSER = navigator.userAgent.includes("Firefox/") ? "firefox"
+  : BRANDS.includes("Microsoft Edge") ? "edge" : BRANDS.includes("Brave") ? "brave"
   : BRANDS.includes("Opera") ? "opera" : "chrome";
+const HAS_GROUPS = !!chrome.tabGroups && !!chrome.tabs.group;  // an older Firefox has no tab groups
 const COLORS = ["blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
 
 // ---- the live link ------------------------------------------------------------------
@@ -89,7 +91,8 @@ async function videoTime(tab) {
 async function report() {
   scanForRestores();
   const windows = await chrome.windows.getAll({ populate: true, windowTypes: ["normal"] });
-  const groups = Object.fromEntries((await chrome.tabGroups.query({})).map(g => [g.id, g.title || ""]));
+  const found = HAS_GROUPS ? await chrome.tabGroups.query({}) : [];
+  const groups = Object.fromEntries(found.map(g => [g.id, g.title || ""]));
   const describe = async t => ({ title: t.title, url: t.url, active: t.active, pinned: t.pinned,
                                  group: t.groupId >= 0 ? groups[t.groupId] : "", time: await videoTime(t) });
   const body = {
@@ -112,7 +115,8 @@ async function report() {
 
 for (const event of [chrome.tabs.onCreated, chrome.tabs.onRemoved, chrome.tabs.onActivated, chrome.tabs.onMoved,
                      chrome.tabs.onAttached, chrome.tabs.onDetached, chrome.windows.onCreated,
-                     chrome.windows.onRemoved, chrome.windows.onFocusChanged, chrome.tabGroups.onUpdated]) {
+                     chrome.windows.onRemoved, chrome.windows.onFocusChanged,
+                     ...(HAS_GROUPS ? [chrome.tabGroups.onUpdated] : [])]) {
   event.addListener(reportSoon);
 }
 chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
@@ -138,6 +142,7 @@ async function openGroup(park, windowId) {
     tabIds.push((await chrome.tabs.create({ windowId, url, active: false })).id);
   }
   if (!tabIds.length) return;
+  if (!HAS_GROUPS) return chrome.tabs.update(tabIds[0], { active: true });
   const groupId = await chrome.tabs.group({ tabIds, createProperties: { windowId } });
   await chrome.tabGroups.update(groupId, { title: park.name, color: COLORS[park.color % COLORS.length] });
   await chrome.tabs.update(tabIds[0], { active: true });
@@ -162,6 +167,7 @@ async function closeTabs(urls) {
 }
 
 async function closeGroup(name) {
+  if (!HAS_GROUPS) return;
   for (const group of await chrome.tabGroups.query({ title: name })) {
     const tabs = await chrome.tabs.query({ groupId: group.id });
     if (tabs.length) await chrome.tabs.remove(tabs.map(t => t.id));

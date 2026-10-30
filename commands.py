@@ -9,12 +9,16 @@ Saving your desk is a draft you build up, then save:
 
 Any time:
   "Show my desks" · "View coding" · "Resume coding" · "Delete coding" (then "yes")
+  "Find the TCP notes" · "Which desk has the lecture"   search everything in your desks
 
 Presets:
   "Pin this" (while viewing a desk) / "Pin dsa"   its items become the preset
   "Start dsa"                                     open the preset's pinned items
   "Unpin dsa"                                     back to a plain desk
   "Save my desk as dsa"                           starts with dsa's things ticked, the rest unticked
+
+After a restart or a crash:
+  "Restore last session" · "Forget last session"
 
 Inside, a saved desk is still called a "park" (store.park, the "park" view): that was its first name.
 """
@@ -31,6 +35,10 @@ PARK = re.compile(r"^(?:park|new park|desk|disk|(?:save|new|park)(?:\s+(?:my|thi
 RESUME_LAST = re.compile(r"^(?:resume|continue|go back|back to work|pick up where i left off)"
                          r"(?:\s+(?:it|that|this|last|latest|the (?:last|latest)(?: one| park| desk)?|my (?:last|latest)(?: one| park| desk)?"
                          r"|where i left off))?$", re.I)
+SEARCH = re.compile(r"^(?:find|search(?:\s+(?:my\s+desks\s+)?for)?|look\s+(?:for|up)|which\s+desk\s+(?:has|had|have|is|was))\s+(?P<what>.+)$", re.I | re.S)
+# after a restart or a crash: what Shiori quietly kept (see autosave.py)
+LAST_SESSION = re.compile(r"^(?:(?:resume|restore|recover|reopen|bring back|get back)\s+)?(?:my\s+|the\s+)?(?:last|previous)\s+session$", re.I)
+FORGET_SESSION = re.compile(r"^(?:forget|delete|discard|ignore)\s+(?:my\s+|the\s+)?(?:last|previous)\s+session$", re.I)
 RESUME = re.compile(r"^(?:resume|retrieve|restore|back to|go back to|continue|switch to|open)\s+(?P<name>.+)$", re.I | re.S)
 # "parts": Wispr often hears "parks" as "parts"
 LIST = re.compile(r"^(?:list|desks|disks|parks|parts|stages|(?:show|see|view)(?:ing)?(?: me)?(?: all)? (?:of )?(?:my |the )?"
@@ -84,7 +92,7 @@ STARTS_A_NOTE = {"i", "i'm", "im", "i've", "i'll", "we", "we're", "the", "a", "a
 NOT_A_MATCH = {"the", "and", "window", "windows", "tab", "tabs", "number", "app", "one", "all"}
 FRIENDLY = {"code": "VS Code", "code - insiders": "VS Code Insiders", "cursor": "Cursor", "windsurf": "Windsurf",
             "windowsterminal": "Terminal", "explorer": "Explorer",
-            "chrome": "Chrome", "msedge": "Edge", "brave": "Brave", "opera": "Opera", "claude": "Claude",
+            "chrome": "Chrome", "msedge": "Edge", "brave": "Brave", "opera": "Opera", "firefox": "Firefox", "claude": "Claude",
             "excel": "Excel", "winword": "Word", "powerpnt": "PowerPoint"}
 
 
@@ -204,7 +212,8 @@ def split_clear(text):
 def parse(text):
     """Commands that work any time.
     -> ('park', name or '', note, clear) | ('resume', name or '') | ('view', name) | ('delete', name)
-       | ('pin', name or '') | ('unpin', name) | ('start', name) | ('undo',) | ('list',) | ('help',)"""
+       | ('pin', name or '') | ('unpin', name) | ('start', name) | ('undo',) | ('list',) | ('help',)
+       | ('last_session',) | ('forget_session',) | ('search', words)"""
     text = without_repeat(LEAD_IN.sub("", text.strip()).rstrip(".!?"))
     if NOISE.match(text):
         return ("noise",)
@@ -221,6 +230,12 @@ def parse(text):
             return ("step", int(number) - 1, not m["un"])
     if RESUME_LAST.match(text):
         return ("resume", "")  # the newest park
+    if LAST_SESSION.match(text):
+        return ("last_session",)
+    if FORGET_SESSION.match(text):
+        return ("forget_session",)
+    if m := SEARCH.match(text):
+        return ("search", m["what"])
     short, clear = split_clear(text)
     if m := PARK.match(short):
         # "park and save as coding" / "park coding and save": the name is coding; saving stays its own step

@@ -28,6 +28,9 @@ if ($LASTEXITCODE -ne 0) { throw "Couldn't draw the icon" }
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
 
 $app = Join-Path $build "dist\Shiori"
+if ($env:SHIORI_CERT_THUMBPRINT) {
+    & (Join-Path $PSScriptRoot "sign.ps1") -File (Join-Path $app "Shiori.exe")
+}
 # The extension sits next to Shiori.exe (not inside it): Chrome's "Load unpacked" needs a real folder
 Copy-Item (Join-Path $root "extension") (Join-Path $app "extension") -Recurse -Force
 Copy-Item (Join-Path $PSScriptRoot "install.ps1"), (Join-Path $PSScriptRoot "uninstall.ps1") $app -Force

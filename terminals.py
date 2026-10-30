@@ -1,17 +1,20 @@
 """Terminals: every shell tab, its folder, and the command running in it.
 
   {"kind": "terminal", "shell": "powershell.exe", "folder": "C:\\…\\ka-OS",
-   "command": "npm run dev", "rerun": True, ...}
+   "command": "npm run dev", "rerun": True, "venv": "C:\\…\\.venv", "conda": "", ...}
 
 On resume, all terminals reopen as tabs of one new Windows Terminal window, each in
 its folder. Commands are only re-run when they look like a dev server or watcher
 (npm run dev, vite, uvicorn, docker compose up…): rerunning anything else, like
-`git push` or a script that deletes files, could do damage.
+`git push` or a script that deletes files, could do damage. An activated Python
+environment (venv or conda) is activated again, in PowerShell and cmd.
 
 Limits, honestly:
   - An idle PowerShell tab reports the folder it *started* in: PowerShell's `cd`
-    doesn't update what Windows sees. A running command reports the right folder.
+    doesn't update what Windows sees. A running command reports the right folder, and so
+    does every tab once "Remember PowerShell folders" is on in the tray (see psprofile.py).
   - Only shells inside Windows Terminal are found (the Windows 11 default).
+  - An environment activated in bash can't be seen from outside it.
 """
 import os
 import re
@@ -21,6 +24,9 @@ import subprocess
 import psutil
 import win32gui
 import win32process
+
+import limits
+from psprofile import SHELLS_DIR
 
 SHELLS = {"powershell.exe", "pwsh.exe", "cmd.exe", "bash.exe", "nu.exe"}
 HELPERS = {"conhost.exe", "openconsole.exe"}
@@ -61,6 +67,37 @@ def _stage_family():
     return {me.pid} | {p.pid for p in me.parents()}
 
 
+def environment(shell):
+    """The Python environment active in a shell. Activating one sets a variable Windows can see."""
+    try:
+        found = shell.environ()
+    except psutil.Error:
+        return {}
+    conda = found.get("CONDA_DEFAULT_ENV", "")
+    return {"venv": found.get("VIRTUAL_ENV", ""), "conda": "" if conda == "base" else conda}
+
+
+def reported_folder(shell):
+    """The folder this PowerShell tab reported, if it's on (see psprofile.py). A file older than
+    the process came from a closed tab that had the same process id."""
+    path = SHELLS_DIR / f"{shell.pid}.txt"
+    try:
+        if path.stat().st_mtime < shell.create_time():
+            return ""
+        folder = path.read_text(encoding="utf-8").strip()
+    except (OSError, ValueError, psutil.Error):
+        return ""
+    return folder if limits.exist([folder], limits.FILE_SECONDS)[folder] else ""
+
+
+def tidy():
+    """Forget the reports of tabs that have closed."""
+    if SHELLS_DIR.exists():
+        for path in SHELLS_DIR.glob("*.txt"):
+            if path.stem.isdigit() and not psutil.pid_exists(int(path.stem)):
+                path.unlink(missing_ok=True)
+
+
 def _terminal_pids():
     """Windows Terminal processes, found through their windows: far faster than
     asking every process on the PC for its name (~0.6 s), and free when none is open."""
@@ -89,37 +126,50 @@ def current():
                 if name not in SHELLS or not (parent.pid == pid or parent.name().lower() in HELPERS):
                     continue  # a tab's shell is started by the terminal itself; anything deeper isn't a tab
                               # (a shell inside a shell, or the hidden cmd that "npm run dev" starts)
-                folder, command = shell.cwd(), ""
+                folder, command = reported_folder(shell) or shell.cwd(), ""
                 for child in shell.children():
                     if child.name().lower() in HELPERS or child.pid in skip:
                         continue
                     command = describe(child)
                     folder = child.cwd() or folder  # more accurate than the shell's own
                     break
-                out.append(item(name, folder, command))
+                out.append(item(name, folder, command, **environment(shell)))
             except psutil.Error:
                 continue  # it closed while we looked, or it's an admin shell
     return out
 
 
-def item(shell, folder, command):
+def item(shell, folder, command, venv="", conda=""):
     place = os.path.basename(folder.rstrip("\\")) or folder
     return {"kind": "terminal", "app": "windowsterminal.exe", "shell": shell, "folder": folder,
-            "command": command, "rerun": bool(command and RERUN_OK.match(command)),
+            "command": command, "rerun": bool(command and RERUN_OK.match(command)), "venv": venv, "conda": conda,
             "title": f"{place} · {command}" if command else place, "group": "FULL", "keep": True}
 
 
+def _activate(t, script):
+    """The activate script of this tab's venv, if it's still there."""
+    path = os.path.join(t["venv"], "Scripts", script) if t.get("venv") else ""
+    return path if path and limits.exist([path], limits.FILE_SECONDS)[path] else ""
+
+
 def _shell_args(t):
-    """What runs inside the tab: the shell, plus the command if it's one we re-run."""
+    """What runs inside the tab: the shell, its Python environment, and the command if it's one we re-run."""
     shell = t.get("shell", "powershell.exe")
-    command = t["command"].replace(";", r"\;") if t.get("rerun") else ""  # wt splits tabs on ';'
-    if not command:
-        return [shell]
+    command = t["command"] if t.get("rerun") else ""
+    conda = f"conda activate {t['conda']}" if t.get("conda") else ""
     if shell == "cmd.exe":
-        return [shell, "/k", command]
+        script = _activate(t, "activate.bat")
+        steps = [f'call "{script}"' if script else conda, command]
+        joined = " & ".join(s for s in steps if s)
+        return [shell, "/k", joined.replace(";", r"\;")] if joined else [shell]
     if shell in ("powershell.exe", "pwsh.exe"):
-        return [shell, "-NoExit", "-Command", command]
-    return [shell]  # bash etc.: folder only
+        script = _activate(t, "Activate.ps1").replace("'", "''")
+        steps = [f"& '{script}'" if script else conda, command]
+        joined = "; ".join(s for s in steps if s).replace(";", r"\;")  # wt splits tabs on ';'
+        return [shell, "-NoExit", "-Command", joined] if joined else [shell]
+    if shell == "bash.exe" and command:  # bash exits when -c ends: carry on as a normal shell
+        return [shell, "-lc", f"{command}; exec bash".replace(";", r"\;")]
+    return [shell]  # anything else: folder only
 
 
 def open_all(terminals):

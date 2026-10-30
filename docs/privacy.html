@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shiori Privacy</title>
+<meta name="description" content="What Shiori and its browser extension do with your data.">
+<style>
+  :root { --paper: #0B0D12; --ink: #e6e9f0; --ink-2: #9aa1b2; --rule: #232836; --accent: #7AA2F7; }
+  @media (prefers-color-scheme: light) {
+    :root { --paper: #f5f7fb; --ink: #0f1320; --ink-2: #535b6e; --rule: #dce1eb; --accent: #3457d5; }
+  }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.65 "Inter", "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 56px 24px 80px; }
+  h1 { font-size: 40px; letter-spacing: -.03em; line-height: 1.1; margin: 0 0 8px; }
+  h2 { font-size: 22px; letter-spacing: -.02em; margin: 40px 0 8px; }
+  p, li { color: var(--ink-2); }
+  a { color: var(--accent); }
+  code { font-family: Consolas, monospace; font-size: .9em; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy</h1>
+  <p>Shiori and its browser extension keep your data on your PC. There is no account, no server of ours, no analytics
+    and no tracking. Last updated 30 October 2026.</p>
+
+  <h2>What the browser extension reads</h2>
+  <p>The title and address of your open tabs, which tab group they're in, and, on YouTube video pages, how far through
+    the video you are. It reads these so the Shiori app can save your tabs and reopen them later.</p>
+
+  <h2>Where that goes</h2>
+  <p>Only to the Shiori app on the same computer, at the local address <code>127.0.0.1</code>. The extension sends nothing
+    to any website or to any other computer, and nothing is sold or shared.</p>
+
+  <h2>What the Shiori app stores</h2>
+  <p>Your saved desks, notes, and optional pictures of your screen, as plain files in
+    <code>%LOCALAPPDATA%\Shiori</code>. If "Save automatically" is on, it also keeps one file with what's open, replaced
+    every few minutes, so a restart or crash doesn't lose your desk. You can turn off desk pictures and automatic saving
+    from the tray, and delete any of these files at any time. Uninstalling keeps your desks in case you come back, unless
+    you run <code>uninstall.ps1 -RemoveParks</code>.</p>
+
+  <h2>Your PowerShell profile</h2>
+  <p>Only if you turn on "Remember PowerShell folders" in the tray, Shiori asks first and then adds a small marked block to
+    your PowerShell profile, which notes each tab's current folder in a file on your PC. It keeps a backup of your profile.
+    Unticking it, or uninstalling, removes the block.</p>
+
+  <h2>The one request Shiori makes</h2>
+  <p>Once a day the app asks GitHub for the number of the latest release, so it can tell you when an update is out. This
+    sends no information about you or your desks, though GitHub sees your IP address like any website does. You can turn
+    it off from the tray with "Check for updates daily".</p>
+
+  <h2>Questions</h2>
+  <p>Shiori is open source, so you can read exactly what it does:
+    <a href="https://github.com/kavyan256/shiori">github.com/kavyan256/shiori</a>.
+    Questions are welcome as a <a href="https://github.com/kavyan256/shiori/issues">GitHub issue</a>.</p>
+</main>
+</body>
+</html>

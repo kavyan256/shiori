@@ -15,17 +15,21 @@ import difflib
 import re
 import time
 
+import autosave
 import browser
 import cues
 import desk
 import icons
+import layout
 import restore
+import search
 import store
 import clear
 import naming
 import office
 import onboarding
 import settings
+import updates
 from capture import list_windows
 from commands import (DELETE_AGAIN, NO, YES, app_name, clean_name, cut_off, fix_command_word, parse, parse_draft,
                       pick_windows)
@@ -122,6 +126,13 @@ class Controller:
                 return self.pin(command[1])
             if command[0] == "unpin":
                 return self.unpin(command[1])
+            if command[0] == "search":
+                return self.search(command[1])
+            if command[0] == "last_session":
+                return self.last_session()
+            if command[0] == "forget_session":
+                autosave.forget()
+                return self.home("Forgotten.")
 
         if command[0] == "undo":
             return self.undo()
@@ -324,7 +335,7 @@ class Controller:
         name = existing["name"] if existing else name
         draft, self.draft = self.draft, None
         store.park(name, draft["items"], draft["note"], draft["steps"], ticked_cues(draft),
-                   shot=desk.keep(self.desk_shot, name))
+                   shot=desk.keep(self.desk_shot, name), layout=layout.of(list_windows()))
         onboarding.mark("saved")
         kept = sum(1 for i in draft["items"] if i["keep"])
         versions = len(store.load(name)["snapshots"])
@@ -395,6 +406,14 @@ class Controller:
         guide = onboarding.guide()
         if guide:  # the guide shows your hotkey, and whether desk pictures are on
             guide = {**guide, "keys": settings.get("hotkey"), "pictures": settings.get("desk_pictures")}
+        session = None if message else autosave.offer()
+        if session:
+            count = sum(1 for i in session["windows"] if i.get("keep", True))
+            message = (f"Shiori kept your desk from before the restart: {count} item{'s' if count != 1 else ''}, "
+                       f"{store.ago(session.get('checked_at', session['parked_at']))}. "
+                       "Say “restore last session”, or “forget last session”.")
+        elif not message and (newer := updates.available()):
+            message = f"Shiori {newer.lstrip('vV')} is out. Get it from the tray icon: Update Shiori."
         return {"view": "home", "parks": parks, "draft": bool(self.draft), "message": message, "guide": guide}
 
     def desk_named(self, spoken, verb):
@@ -451,10 +470,35 @@ class Controller:
         self.viewing = name  # so "tick 1" works on the note you're reading
         self.remember_resume(name, snap["windows"])
         opened, skipped = restore.reopen(snap, name)
+        layout.restore_later(snap, self.last_action["before"])
         return self.with_undo({"view": "resume", "verb": "Resumed", "name": name, "ago": store.ago(snap["parked_at"]),
                 "note": snap["brain_dump"], "steps": snap["next_steps"], "done": snap.get("done", []),
                 "opened": opened, "skipped": skipped, "shot": snap.get("shot", ""), "message": " ".join(notes),
                 "cues": cue_rows(cues.compare(snap.get("cues", [])))})
+
+    def search(self, words):
+        """'find the TCP notes': the desks with those words anywhere in them."""
+        found = search.find(words, store.list_stages())
+        if not found:
+            return {"view": "message", "title": f"Nothing found for “{words}”",
+                    "lines": [{"text": "Show my desks", "say": "show my desks"}]}
+        return {"view": "message", "title": f"Found in {len(found)} desk{'s' if len(found) != 1 else ''} · click or say one",
+                "lines": [{"text": f"{r['name']}  ·  {r['found']}" if r["found"] else r["name"],
+                           "say": f"view {r['name']}", "park": True} for r in found[:6]]}
+
+    def last_session(self):
+        """Bring back what Shiori quietly kept before a restart or a crash."""
+        session = autosave.offer()
+        if not session:
+            return self.home("No earlier session to bring back. One is kept after a restart or a crash, for three days.")
+        name = "Last session"  # names the tab group
+        self.remember_resume(name, session["windows"])
+        opened, skipped = restore.reopen(session, name)
+        layout.restore_later(session, self.last_action["before"])
+        autosave.forget()
+        return self.with_undo({"view": "resume", "verb": "Restored", "name": "your last session",
+                               "ago": store.ago(session["parked_at"]), "note": "", "steps": [], "done": [],
+                               "opened": opened, "skipped": skipped, "shot": "", "message": "", "cues": []})
 
     # --- next steps: tick them off as you get through them -------------------------------
     def tick_step(self, index, done):
@@ -521,7 +565,9 @@ class Controller:
             return view
         last = stage["snapshots"][-1]
         self.remember_resume(name, stage["pinned"])
-        opened, skipped = restore.reopen({"windows": stage["pinned"]}, name)
+        preset = {"windows": stage["pinned"], "layout": last.get("layout", [])}
+        opened, skipped = restore.reopen(preset, name)
+        layout.restore_later(preset, self.last_action["before"])
         return self.with_undo({"view": "resume", "verb": "Started", "name": name, "ago": store.ago(last["parked_at"]),
                 "note": last["brain_dump"], "steps": last["next_steps"], "opened": opened, "skipped": skipped,
                 "cues": cue_rows(cues.compare(last.get("cues", [])))})
@@ -558,6 +604,8 @@ class Controller:
                           {"text": "Resume (the last one)", "say": "resume"} if known else "Resume (the last one)",
                           {"text": f"Resume {example}", "say": f"resume {example}"} if known else f"Resume {example}",
                           {"text": "Show my desks", "say": "show my desks"},
+                          "Find the TCP notes  (searches everything in your desks)",
+                          {"text": "Restore last session (after a restart or a crash)", "say": "restore last session"},
                           {"text": f"View {example}", "say": f"view {example}"} if known else f"View {example}",
                           "Pin this · Start dsa",
                           "Save my desk as dsa  (ticks dsa's things for you)",
@@ -615,9 +663,9 @@ def row_meta(item):
         at = f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes}:{seconds:02}"
         return f"{host} · at {at}"
     if kind(item) == "terminal":
-        if not item["command"]:
-            return ""
-        return "reruns on resume" if item.get("rerun") else "folder only (not re-run)"
+        python = item.get("conda") or (item.get("venv") and "venv")
+        place = "" if not item["command"] else "reruns on resume" if item.get("rerun") else "folder only (not re-run)"
+        return " · ".join(p for p in (python, place) if p)
     if kind(item) == "file":
         parts = [item.get("where_text", "")] + (["unsaved changes"] if item.get("unsaved") else [])
         return " · ".join(p for p in parts if p)

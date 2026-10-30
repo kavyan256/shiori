@@ -520,7 +520,7 @@ const views = {
     const summary = [already && `${already} already open`, missed && `${missed} not reopened`].filter(Boolean).join(" · ");
     const skipped = s.skipped.length ? `<details><summary>${summary}</summary>${
       s.skipped.map(x => `<div>${esc(x)}</div>`).join("")}</details>` : "";
-    const verb = { Started: "Started", Reopened: "Reopened" }[s.verb] || "Resuming";
+    const verb = { Started: "Started", Reopened: "Reopened", Restored: "Restored" }[s.verb] || "Resuming";
     return `<section><h2>${verb} ${esc(s.name)} <span class="sub">${started ? "last saved" : "saved"} ${esc(s.ago)}</span></h2>
       ${s.message ? `<div class="msg" style="margin:-2px 0 8px">${esc(s.message)}</div>` : ""}
       ${noteBlock(s.note, s.steps, "No note", s.cues, { tickable: true, done: s.done })}

@@ -44,25 +44,34 @@ follow the three steps. Without it Shiori still works; browsers show only their 
 | `pin this` · `start dsa` | Make a preset you can start any time |
 | `tick 1` | Tick off a next step while reading your note |
 | `undo` | Take back the last resume, clear or delete |
+| `find the TCP notes` | Search everything in your desks |
+| `restore last session` | Bring back your desk after a restart or a crash |
 
 ## What comes back
 
 - **Apps and folders**: VS Code, Cursor, Windsurf and VS Code Insiders folders, Explorer folders, Store apps (Claude, Terminal…)
 - **Browser tabs** as a named tab group, YouTube at the second you left it (Chrome, Edge, Brave and Opera, with the extension)
-- **Terminals** in their folders; dev servers and watchers (`npm run dev`, `vite`, `uvicorn`…) start again, nothing else re-runs
+- **Terminals** in their folders, with their Python environment; dev servers and watchers (`npm run dev`, `vite`, `uvicorn`…) start again, nothing else re-runs
 - **Excel, Word and PowerPoint files** at the same sheet and cell, or slide
 - **PDFs and text files** in the app they were open in
 - **Git context**: branch, uncommitted changes and last commit, with a warning if you've switched branch since
+- **Window positions**: the same place, size and monitor, for the windows a resume opens
 
 ## Private by design
 
 Everything stays on your PC, in `%LOCALAPPDATA%\Shiori`. No account, no cloud, no API key. The
-browser extension only talks to Shiori on `127.0.0.1`.
+browser extension only talks to Shiori on `127.0.0.1`. Once a day the app asks GitHub for the latest
+version number, and nothing else leaves your PC; turn that off in the tray menu: **Check for updates
+daily**. See the [privacy page](https://kavyan256.github.io/shiori/privacy.html).
 
 Each save keeps a small picture of your screen, shown when you come back. Anything on screen is in
 it, so you can turn it off (and delete the ones kept) in the tray menu: **Keep desk pictures**.
 Nothing grows forever: a desk keeps its last 10 versions, deleted desks stay in the trash for 30
 days, and pictures no desk uses are removed.
+
+Shiori also quietly keeps what's open every few minutes, in one file that keeps being replaced, so a
+restart or a crash doesn't lose your desk: say `restore last session`. Turn it off in the tray menu:
+**Save automatically**.
 
 ## How it's built
 
@@ -102,9 +111,10 @@ Each release gets its own version number; see [CHANGELOG.md](CHANGELOG.md).
 
 - Windows only. Not code-signed yet, so SmartScreen warns once.
 - The browser extension is loaded unpacked (Developer mode) until it's on the Chrome Web Store.
-- An idle PowerShell tab reports the folder it started in (PowerShell's `cd` isn't visible to Windows).
-- Window positions aren't restored yet.
-- Firefox (and Vivaldi, Arc) show only their front tab: the extension runs in Chrome, Edge, Brave and Opera.
+- An idle PowerShell tab reports the folder it started in, unless you turn on **Remember PowerShell folders** in the tray.
+- An environment activated in bash can't be seen, so it isn't activated again.
+- Two windows of one browser come back as one window, with one tab group.
+- The Firefox package hasn't been tested in Firefox yet, and needs Firefox 139 or later. Vivaldi and Arc show only their front tab.
 - Commands are in English.
 
 MIT licensed: see [LICENSE](LICENSE).

@@ -3,4 +3,5 @@ __pycache__/
 data/
 .env
 build/
+dist/
 packaging/shiori.ico

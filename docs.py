@@ -25,7 +25,7 @@ import limits
 RECENT = Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Recent"
 TITLE_APPS = {"notepad.exe", "notepad++.exe", "mspaint.exe", "acrobat.exe", "acrord32.exe",
               "sumatrapdf.exe", "photos.exe", "wordpad.exe"}
-BROWSERS = {"msedge.exe", "chrome.exe", "brave.exe", "opera.exe"}  # a PDF open in the browser's own viewer
+BROWSERS = {"msedge.exe", "chrome.exe", "brave.exe", "opera.exe", "firefox.exe"}  # a PDF open in the browser's own viewer
 MORE_PAGES = re.compile(r" and \d+ more pages?$")  # Edge: "notes.pdf and 2 more pages"
 
 

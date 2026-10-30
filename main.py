@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 import traceback
+import webbrowser
 from pathlib import Path
 
 import psutil
@@ -33,12 +34,16 @@ import win32process
 import winerror
 from PIL import Image, ImageDraw
 
+import autosave
 import browser
 import desk
 import onboarding
 import paths
+import psprofile
 import settings
 import store
+import terminals
+import updates
 from controller import Controller
 from version import VERSION
 
@@ -358,13 +363,46 @@ def set_desk_pictures(on):
         log.info("deleted %d desk pictures", store.delete_pictures())
 
 
+def set_powershell_folders(on):
+    """Tray: add or remove the block in your PowerShell profile (see psprofile.py). Asks first."""
+    if not on:
+        psprofile.turn_off()
+        log.info("powershell folders off")
+        return
+    answer = win32api.MessageBox(0, "Idle PowerShell tabs can't tell Windows when you cd somewhere else, so they "
+                                    "can come back in the folder they started in.\n\n"
+                                    "To fix that, Shiori adds a small block to your PowerShell profile. At each "
+                                    "prompt it notes the tab's folder in a file on this PC. It keeps a backup of "
+                                    "your profile, and unticking this removes the block.\n\nAdd it?", TITLE,
+                                 win32con.MB_YESNO | win32con.MB_ICONQUESTION)
+    if answer != win32con.IDYES:
+        return
+    blocked = psprofile.turn_on()
+    if blocked:
+        win32api.MessageBox(0, f"PowerShell's execution policy is {blocked}, so it wouldn't run an edited profile. "
+                               "Nothing was changed.\n\nShiori doesn't change this setting for you. To allow it "
+                               "yourself, run in PowerShell:\n\n"
+                               "Set-ExecutionPolicy -Scope CurrentUser RemoteSigned", TITLE)
+    else:
+        log.info("powershell folders on")
+        win32api.MessageBox(0, "Done. Terminal tabs you open from now on will remember their folder.", TITLE)
+
+
+def tell_about_update(version):
+    log.info("new version out: %s", version)
+    icon.notify(f"Shiori {version.lstrip('vV')} is out. Right-click the tray icon to get it.", "Shiori")
+    icon.update_menu()
+
+
 def quit_app():
     log.info("quit")
+    autosave.finished()
     icon.stop()
     note_window.destroy()
     window.destroy()
 
 
+CHROME_STORE = ""  # the extension's store page, once it's published (see packaging/store/LISTING.md)
 EXTENSION_HELP = (
     "To let Shiori see your browser tabs, add its extension (one time):\n\n"
     "1. In Chrome or Edge, open chrome://extensions (edge://extensions in Edge)\n"
@@ -374,7 +412,10 @@ EXTENSION_HELP = (
 
 
 def set_up_extension():
-    """Open the extension folder and show the 3 steps (the Web Store needs a review first)."""
+    """The store page once it's published; until then the extension folder and the 3 steps."""
+    if CHROME_STORE:
+        webbrowser.open(CHROME_STORE)
+        return
     os.startfile(paths.EXTENSION)
     win32api.MessageBox(0, EXTENSION_HELP.format(folder=paths.EXTENSION), "Shiori: browser tabs")
 
@@ -393,9 +434,18 @@ def start_tray():
         pystray.MenuItem("Keep desk pictures", lambda item: threading.Thread(
             target=set_desk_pictures, args=(not settings.get("desk_pictures"),), daemon=True).start(),
             checked=lambda item: settings.get("desk_pictures")),
+        pystray.MenuItem("Remember PowerShell folders", lambda item: threading.Thread(
+            target=set_powershell_folders, args=(not psprofile.is_on(),), daemon=True).start(),
+            checked=lambda item: psprofile.is_on()),
+        pystray.MenuItem("Save automatically", lambda item: settings.change("autosave", not settings.get("autosave")),
+                         checked=lambda item: settings.get("autosave")),
         pystray.MenuItem("Start with Windows", lambda item: set_start_with_windows(not starts_with_windows()),
                          checked=lambda item: starts_with_windows()),
         pystray.Menu.SEPARATOR,
+        pystray.MenuItem(lambda item: f"Update Shiori to {updates.available().lstrip('vV')}…",
+                         lambda: webbrowser.open(updates.RELEASES), visible=lambda item: bool(updates.available())),
+        pystray.MenuItem("Check for updates daily", lambda item: settings.change("check_updates", not settings.get("check_updates")),
+                         checked=lambda item: settings.get("check_updates")),
         pystray.MenuItem(f"Shiori {VERSION}", None, enabled=False),
         pystray.MenuItem("Quit Shiori", lambda: quit_app()),
     ))
@@ -440,6 +490,7 @@ def tidy_up():
     """At start: empty old trash, remove desk pictures no desk uses (see store.tidy)."""
     try:
         trash, pictures = store.tidy()
+        terminals.tidy()
         if trash or pictures:
             log.info("tidied: %d old deleted desks, %d unused desk pictures", trash, pictures)
     except OSError as e:
@@ -472,8 +523,11 @@ def on_started():
     browser.start()
     threading.Thread(target=listen_for_hotkey, daemon=True).start()
     threading.Thread(target=tidy_up, daemon=True).start()
+    autosave.at_start()
+    threading.Thread(target=autosave.keep_saving, daemon=True).start()
     threading.Thread(target=health_log, args=(float(os.environ.get("SHIORI_HEALTH_EVERY", 3600)),), daemon=True).start()
     start_tray()
+    threading.Thread(target=updates.keep_checking, args=(tell_about_update,), daemon=True).start()
     if first:  # say hello: a Windows notification, and the bar opens once with the guide
         log.info("first run: showing the guide")
         try:

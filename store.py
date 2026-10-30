@@ -55,7 +55,7 @@ def save(stage):
     os.replace(tmp, path)
 
 
-def park(name, items, note="", steps=None, cues=None, shot=""):
+def park(name, items, note="", steps=None, cues=None, shot="", layout=None):
     """Save a version under this name (creating it if new). Items keep their keep=True/False."""
     stage = load(name) or {"name": name, "snapshots": []}
     snapshot = {
@@ -64,6 +64,7 @@ def park(name, items, note="", steps=None, cues=None, shot=""):
         "next_steps": steps or [],
         "windows": items,  # app windows, tabs, terminals and files (see items.py)
         "cues": cues or [],  # git branch / changes per repo (see cues.py)
+        "layout": layout or [],  # where each window was (see layout.py)
     }
     if shot:
         snapshot["shot"] = shot  # a picture of the desk when you saved (see desk.py)

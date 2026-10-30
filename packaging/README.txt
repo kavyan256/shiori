@@ -16,6 +16,8 @@ Use it
     save   (or save as dsa) name it and save
     resume dsa              bring it all back
     show my desks           see what you've saved
+    find the TCP notes      search everything in your desks
+    restore last session    bring your desk back after a restart or a crash
 
 Browser tabs (optional, one time)
   Right-click the tray S -> "Set up browser tabs..." and follow the 3 steps.

@@ -29,9 +29,9 @@ from websockets.sync.server import serve as serve_websocket
 PORT, WS_PORT = 47321, 47322
 BASE = f"http://127.0.0.1:{PORT}"
 FRESH_FOR = 180  # seconds: the extension reports on every change and every minute
-# Chromium browsers the extension runs in (it says which one it's in). Firefox isn't one:
-# its extensions work differently, so Firefox shows only its front tab, as a window.
-EXE = {"chrome": "chrome.exe", "edge": "msedge.exe", "brave": "brave.exe", "opera": "opera.exe"}
+# Browsers the extension runs in (it says which one it's in). Firefox has its own package.
+EXE = {"chrome": "chrome.exe", "edge": "msedge.exe", "brave": "brave.exe", "opera": "opera.exe",
+       "firefox": "firefox.exe"}
 BROWSER_OF_APP = {exe: name for name, exe in EXE.items()}
 # Extra browser flags, for testing against a separate browser profile
 EXTRA_ARGS = os.environ.get("STAGE_BROWSER_ARGS", "").split()

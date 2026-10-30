@@ -67,6 +67,7 @@ class Window:
     # Store-style apps (installed under WindowsApps, e.g. Claude, Terminal) can't be
     # started from their .exe; Windows starts them by this app ID instead
     app_id: str = ""
+    maximized: bool = False
 
 
 def app_id_of(pid):
@@ -228,6 +229,7 @@ def list_windows():
             rect=win32gui.GetWindowRect(hwnd),
             minimized=bool(win32gui.IsIconic(hwnd)),
             monitor=monitor_of(hwnd),
+            maximized=bool(ctypes.windll.user32.IsZoomed(hwnd)),
         )
         win.group = group_of(win)
         if "\\windowsapps\\" in exe.lower():

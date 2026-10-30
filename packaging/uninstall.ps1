@@ -8,6 +8,16 @@ Get-Process Shiori -ErrorAction SilentlyContinue | Where-Object { $_.Path -like 
 Start-Sleep -Milliseconds 500
 Remove-Item (Join-Path ([Environment]::GetFolderPath("Programs")) "Shiori.lnk") -ErrorAction SilentlyContinue
 Remove-Item (Join-Path ([Environment]::GetFolderPath("Startup")) "Shiori.lnk") -ErrorAction SilentlyContinue
+# Take out the block "Remember PowerShell folders" may have added to your profiles (see psprofile.py)
+$documents = [Environment]::GetFolderPath("MyDocuments")
+foreach ($folder in "WindowsPowerShell", "PowerShell") {
+    $profilePath = Join-Path $documents "$folder\Microsoft.PowerShell_profile.ps1"
+    if (Test-Path -LiteralPath $profilePath) {
+        $text = Get-Content -LiteralPath $profilePath -Raw
+        $cleaned = $text -replace '(?s)# >>> Shiori:.*?# <<< Shiori <<<\r?\n?', ''
+        if ($cleaned -cne $text) { Set-Content -LiteralPath $profilePath -Value $cleaned -NoNewline }
+    }
+}
 if ($RemoveParks) { Remove-Item (Join-Path $env:LOCALAPPDATA "Shiori") -Recurse -Force -ErrorAction SilentlyContinue }
 
 # A script can't delete the folder it runs from: hand that to a short-lived helper
