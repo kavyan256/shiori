@@ -132,7 +132,12 @@ chrome.runtime.onInstalled.addListener(connect);
 
 // ---- open a park's tabs as a tab group ----------------------------------------------
 async function openGroup(park, windowId) {
-  if (windowId === undefined) {
+  let blank = null;
+  if (park.new_window) {  // a second saved window of this browser
+    const made = await chrome.windows.create({ focused: false });
+    windowId = made.id;
+    blank = made.tabs?.[0]?.id;
+  } else if (windowId === undefined) {
     const last = await chrome.windows.getLastFocused({ windowTypes: ["normal"] }).catch(() => null);
     windowId = last ? last.id : (await chrome.windows.create({ focused: true })).id;
   }
@@ -142,6 +147,7 @@ async function openGroup(park, windowId) {
     tabIds.push((await chrome.tabs.create({ windowId, url, active: false })).id);
   }
   if (!tabIds.length) return;
+  if (blank) await chrome.tabs.remove(blank);
   if (!HAS_GROUPS) return chrome.tabs.update(tabIds[0], { active: true });
   const groupId = await chrome.tabs.group({ tabIds, createProperties: { windowId } });
   await chrome.tabGroups.update(groupId, { title: park.name, color: COLORS[park.color % COLORS.length] });

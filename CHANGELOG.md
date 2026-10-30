@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1 · 30 Oct 2026
+
+- **Browser windows stay separate:** two saved windows come back as two, each with its own tab group (extension 0.8.0).
+- **Restore last session** is now a button in the bar after a restart or a crash.
+
 ## 1.2.0 · 30 Oct 2026
 
 - **Windows come back where they were:** position, size and maximized, on the same monitor. Only windows the resume opened are moved, and if that monitor isn't connected, Windows places the window.

@@ -448,17 +448,19 @@ function guideCard(progress) {
 const views = {
   home(s) {
     const msg = s.message ? `<div class="msg">${esc(s.message)}${s.undo ? ` ${undoButton(s, true)}` : ""}</div>` : "";
+    const session = s.session ? `<div class="actions"><button class="primary" data-say="restore last session">Restore last session</button>
+      <button class="ghost" data-say="forget last session">Forget it</button></div>` : "";
     const draft = s.draft ? `<div class="foot">You have an unsaved desk. Say “save my desk” to go back to it.</div>` : "";
     const parkButton = `<div class="actions"><button class="primary" data-say="save my desk">${s.draft ? "Back to unsaved desk" : "Save my desk"}</button>
       ${s.draft ? "" : `<button class="ghost" data-say="save my desk and clear" title="Save, then close what you saved">or save and clear</button>`}</div>`;
     const guide = s.guide ? guideCard(s.guide) : "";
-    if (!s.parks.length && guide) return `<section>${msg}${guide}${parkButton}${draft}</section>`;
-    if (s.parks.length && guide) return `<section>${msg}${guide}<div class="label">Your desks</div>
+    if (!s.parks.length && guide) return `<section>${msg}${session}${guide}${parkButton}${draft}</section>`;
+    if (s.parks.length && guide) return `<section>${msg}${session}${guide}<div class="label">Your desks</div>
       <div class="scroll stagger">${s.parks.map((p, i) => parkRow(p, i)).join("")}</div>${parkButton}${draft}</section>`;
-    if (!s.parks.length) return `<section>${msg}<div class="empty-state">No desks saved yet.<br>
+    if (!s.parks.length) return `<section>${msg}${session}<div class="empty-state">No desks saved yet.<br>
       Say <b>“Save my desk”</b> to save what's open, drop what you don't need, then <b>“save as coding”</b>.<br>
       Later: <b>“resume coding”</b>.</div>${parkButton}${draft}</section>`;
-    return `<section>${msg}<div class="label">Your desks · ↑↓ Enter to resume · click to view</div>
+    return `<section>${msg}${session}<div class="label">Your desks · ↑↓ Enter to resume · click to view</div>
       <div class="scroll stagger">${s.parks.map((p, i) => parkRow(p, i)).join("")}</div>${parkButton}${draft}</section>`;
   },
 

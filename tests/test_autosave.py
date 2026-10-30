@@ -76,7 +76,8 @@ def fresh_offer():
 
 def test_home_offers_it_and_restoring_uses_it_up(shiori):
     fresh_offer()
-    assert "restore last session" in shiori.say("show my desks")["message"]
+    home = shiori.say("show my desks")
+    assert "restore last session" in home["message"] and home["session"]
     view = shiori.say("restore last session")
     assert view["view"] == "resume" and view["verb"] == "Restored"
     assert shiori.opened == ["Last session"]

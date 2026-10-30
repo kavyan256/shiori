@@ -414,7 +414,8 @@ class Controller:
                        "Say “restore last session”, or “forget last session”.")
         elif not message and (newer := updates.available()):
             message = f"Shiori {newer.lstrip('vV')} is out. Get it from the tray icon: Update Shiori."
-        return {"view": "home", "parks": parks, "draft": bool(self.draft), "message": message, "guide": guide}
+        return {"view": "home", "parks": parks, "draft": bool(self.draft), "message": message, "guide": guide,
+                "session": bool(session)}
 
     def desk_named(self, spoken, verb):
         """(name, None), or (None, a view to show instead). A scrap of a name ('resume s': Enter or

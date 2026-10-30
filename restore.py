@@ -96,7 +96,7 @@ def plan(snapshot, name=""):
     for win in open_now:
         windows_of.setdefault(win.app, []).append(win)
     code_cmd = shutil.which("code")
-    tabs = {}  # browser -> URLs to reopen together as one tab group
+    tabs = {}  # browser -> {its window number: URLs to reopen together as one tab group}
     wanted_terminals, wanted_files, local_tabs = [], [], []
     handled_apps = set()
 
@@ -116,7 +116,7 @@ def plan(snapshot, name=""):
             if w["url"].startswith("file:"):  # extensions can't open local files: Shiori does
                 local_tabs.append(w)
             else:
-                tabs.setdefault(w["browser"], []).append(w["url"])
+                tabs.setdefault(w["browser"], {}).setdefault(w.get("window", 1), []).append(w["url"])
             continue
         if kind(w) == "terminal":
             wanted_terminals.append(w)
@@ -205,15 +205,22 @@ def plan(snapshot, name=""):
         actions.append((f"{t['browser'].title()}  {t['title']}", lambda e=exe, u=t["url"]: subprocess.Popen([e, u])))
 
     open_tabs = browser.fresh_tabs({w.app for w in open_now})
-    for name_of_browser, urls in tabs.items():
+    for name_of_browser, by_window in tabs.items():
+        urls = [u for window in by_window.values() for u in window]
         # compare without YouTube start times: the same video open at another minute is still open
         already = {without_time(t["url"]) for win in open_tabs.get(name_of_browser, []) for t in win["tabs"]}
-        new = [u for u in dict.fromkeys(urls) if without_time(u) not in already]  # no duplicates, nothing open
-        if len(new) < len(urls):
-            skipped.append(f"{len(urls) - len(new)} {name_of_browser} tab(s) (already open)")
-        if new:
-            label = f"{name_of_browser.title()}  {len(new)} tab{'s' if len(new) > 1 else ''}"
-            actions.append((label, lambda b=name_of_browser, u=new: browser.open_tabs(b, u, name or "Shiori")))
+        seen, windows = set(), []  # no duplicates, nothing already open
+        for window in by_window.values():
+            new = [u for u in dict.fromkeys(window) if without_time(u) not in already and u not in seen]
+            seen.update(new)
+            if new:
+                windows.append(new)
+        if len(seen) < len(urls):
+            skipped.append(f"{len(urls) - len(seen)} {name_of_browser} tab(s) (already open)")
+        for n, new in enumerate(windows):
+            where = f" · window {n + 1}" if len(windows) > 1 else ""
+            label = f"{name_of_browser.title()}  {len(new)} tab{'s' if len(new) > 1 else ''}{where}"
+            actions.append((label, lambda b=name_of_browser, u=new, extra=n > 0: browser.open_tabs(b, u, name or "Shiori", extra)))
 
     return actions, skipped
 

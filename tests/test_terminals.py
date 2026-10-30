@@ -135,3 +135,16 @@ def test_the_block_really_reports_the_folder_and_keeps_your_prompt(tmp_path):
     lines = done.stdout.split()
     assert lines[0] == "MINE>"
     assert (tmp_path / f"{lines[1]}.txt").read_text(encoding="utf-8") == r"C:\Windows"
+
+
+def test_two_browser_windows_come_back_as_two(monkeypatch):
+    import browser
+    import restore
+    opened = []
+    monkeypatch.setattr(restore, "list_windows", lambda: [])
+    monkeypatch.setattr(browser, "open_tabs", lambda b, urls, name, extra=False: opened.append((urls, extra)))
+    tab_at = lambda url, window: {"kind": "tab", "browser": "chrome", "app": "chrome.exe", "window": window, "title": url, "url": url}
+    actions, _ = restore.plan({"windows": [tab_at("https://a", 1), tab_at("https://b", 2), tab_at("https://a", 2)]}, "x")
+    for _, command in actions:
+        command()
+    assert opened == [(["https://a"], False), (["https://b"], True)]

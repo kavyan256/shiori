@@ -113,7 +113,6 @@ Each release gets its own version number; see [CHANGELOG.md](CHANGELOG.md).
 - The browser extension is loaded unpacked (Developer mode) until it's on the Chrome Web Store.
 - An idle PowerShell tab reports the folder it started in, unless you turn on **Remember PowerShell folders** in the tray.
 - An environment activated in bash can't be seen, so it isn't activated again.
-- Two windows of one browser come back as one window, with one tab group.
 - The Firefox package hasn't been tested in Firefox yet, and needs Firefox 139 or later. Vivaldi and Arc show only their front tab.
 - Commands are in English.
 

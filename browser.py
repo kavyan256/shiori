@@ -121,18 +121,19 @@ def browser_exe(browser):
     return name
 
 
-def open_tabs(browser, urls, park_name):
-    """Reopen a park's tabs: as a named tab group via the extension, else a plain new window."""
+def open_tabs(browser, urls, park_name, new_window=False):
+    """Reopen a park's tabs: as a named tab group via the extension, else a plain new window.
+    new_window: a second saved window of this browser gets a window of its own."""
     if not urls:
         return
     color = sum(map(ord, park_name))  # same color each time
-    if _send(browser, {"type": "restore", "name": park_name, "urls": urls, "color": color}):
+    if _send(browser, {"type": "restore", "name": park_name, "urls": urls, "color": color, "new_window": new_window}):
         return  # browser is open and connected: the extension opens the group directly
     exe = browser_exe(browser)
     if has_extension(browser):
         token = secrets.token_urlsafe(12)
         with _lock:
-            _restores[token] = {"name": park_name, "urls": urls, "color": color}
+            _restores[token] = {"name": park_name, "urls": urls, "color": color, "new_window": new_window}
         subprocess.Popen([exe, *EXTRA_ARGS, f"{BASE}/restore/{token}"])
     else:
         subprocess.Popen([exe, *EXTRA_ARGS, "--new-window", *urls])
