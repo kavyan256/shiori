@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1 · 31 Oct 2026
+
+- **Unsaved work:** clearing or switching desks now saves first, then asks before closing windows that may have unsaved work.
+
 ## 1.3.0 · 30 Oct 2026
 
 - **What was I doing?** Your note and next steps, with nothing reopened.

@@ -24,6 +24,19 @@ def close_windows(hwnds):
             pass
 
 
+def looks_unsaved(title):
+    """VS Code and many editors mark unsaved work in the title: "● app.py - shop", "*notes.txt"."""
+    title = title.strip()
+    return title.startswith(("●", "•", "*")) or title.endswith("*")
+
+
+def unsaved(items):
+    """Titles of open windows, in the apps about to close, that may hold unsaved work. Only a hint:
+    Word and Excel show nothing in the title, but closing still asks them, and they stay open."""
+    apps = {i["app"] for i in items if i.get("keep", True) and kind(i) not in ("terminal", "tab")}
+    return [w.title for w in list_windows() if w.app in apps - set(docs.BROWSERS) and looks_unsaved(w.title)]
+
+
 def close_items(items):
     """Close the kept items of a park. Returns (what was closed, what was left open and why)."""
     open_now = list_windows()

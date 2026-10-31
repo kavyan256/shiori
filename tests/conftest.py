@@ -47,7 +47,7 @@ class Shiori:
 
     def fresh(self):
         """Back to the home screen with nothing pending, as if the bar was just opened."""
-        self.c.draft = self.c.confirm_delete = self.c.checking_name = None
+        self.c.draft = self.c.confirm_delete = self.c.checking_name = self.c.confirm_close = None
         self.c.asking_name = False
         self.opened.clear()
 
@@ -69,6 +69,7 @@ def shiori(monkeypatch):
     monkeypatch.setattr(office, "current", lambda: [])
     monkeypatch.setattr(restore, "reopen", lambda snap, name=None, **k: (s.opened.append(name) or ["(stub)"], []))
     monkeypatch.setattr(clear, "close_items", lambda items: (["(stub)"], []))
+    monkeypatch.setattr(clear, "unsaved", lambda items: [])
     for name in DESKS:
         s.say("save my desk")
         s.say(f"save as {name}")

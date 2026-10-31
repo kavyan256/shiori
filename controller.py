@@ -49,6 +49,7 @@ class Controller:
         self.asking_name = False    # waiting for "what should I call it?"
         self.confirm_delete = None  # park name waiting for "yes"
         self.checking_name = None   # a long name waiting for "yes": {"name", "clear"}
+        self.confirm_close = None   # saved, but windows may hold unsaved work: {"items", "name", "target"}
         self.viewing = None         # the park on screen, for "pin this"
         self.last_action = None     # what "undo" would take back: {"kind", "name", "at", ...}
         self.working_on = None      # the desk you last resumed, for "switch to" and "add to my note"
@@ -59,6 +60,7 @@ class Controller:
         self.asking_name = False
         self.confirm_delete = None
         self.checking_name = None
+        self.confirm_close = None
         if self.draft and time.time() - self.draft["at"] > DRAFT_EXPIRES:
             self.draft = None
         return self.draft_view() if self.draft else self.home()
@@ -66,6 +68,14 @@ class Controller:
     # --- one entry point for everything you say -------------------------------
     def handle(self, text):
         text = text.strip()
+        if self.confirm_close:
+            pending, self.confirm_close = self.confirm_close, None
+            if YES.match(text) or text.lower().startswith("close"):
+                return self.close_saved(pending)
+            if text and not NO.match(text) and not text.lower().startswith("keep") \
+                    and parse(text)[0] not in ("help", "noise"):
+                return self.handle(text)  # you moved on to something else: nothing is closed
+            return self.view(pending["name"], "Saved. Nothing was closed.")
         if self.confirm_delete:
             name, self.confirm_delete = self.confirm_delete, None
             if YES.match(text) or DELETE_AGAIN.match(text):
@@ -352,11 +362,32 @@ class Controller:
         extra = f" · version {versions}" if versions > 1 else ""
         view = self.view(name, f"Saved ✓  {kept} of {len(draft['items'])} items{extra}")
         if clear_after or draft.get("clear"):
-            closed, left = clear.close_items(draft["items"])
-            view.update(cleared=closed, left_open=left)
-            self.remember("clear", name)
-            return self.with_undo(view)
+            pending = {"items": draft["items"], "name": name, "target": None}
+            return self.ask_close(pending) or self.close_saved(pending, view)
         return view
+
+    def ask_close(self, pending):
+        """The desk is saved. If a window may hold unsaved work, ask before closing anything."""
+        titles = clear.unsaved(pending["items"])
+        if not titles:
+            return None
+        self.confirm_close = pending
+        count = f"{len(titles)} windows" if len(titles) > 1 else "1 window"
+        return {"view": "message", "title": f"Saved “{pending['name']}”. {count} may have unsaved work",
+                "lines": [t[:60] for t in titles[:5]] + ["Save them first, then choose."]
+                + [{"text": "Close anyway", "say": "close anyway"}, {"text": "Keep them open", "say": "keep them open"}]}
+
+    def close_saved(self, pending, view=None):
+        """Close what was saved, then go on to the next desk if this was a switch."""
+        closed, left = clear.close_items(pending["items"])
+        if pending["target"]:
+            view = self.resume(pending["target"])
+            view["message"] = f"Saved {pending['name']} first. {view['message']}".strip()
+            return view
+        view = view or self.view(pending["name"], "Saved ✓")
+        view.update(cleared=closed, left_open=left)
+        self.remember("clear", pending["name"])
+        return self.with_undo(view)
 
     # --- undo -----------------------------------------------------------------------------
     def remember(self, kind_of_action, name, **details):
@@ -540,10 +571,8 @@ class Controller:
         name = name or "before switching"
         store.park(name, items, old["brain_dump"] if old else "", old["next_steps"] if old else [],
                    old.get("cues", []) if old else [], layout=layout.of(list_windows()))
-        clear.close_items(items)
-        view = self.resume(target)
-        view["message"] = f"Saved {name} first. {view['message']}".strip()
-        return view
+        pending = {"items": items, "name": name, "target": target}
+        return self.ask_close(pending) or self.close_saved(pending)
 
     def search(self, words):
         """'find the TCP notes': the desks with those words anywhere in them."""
