@@ -2,7 +2,9 @@
 
 PowerShell's `cd` doesn't change what Windows sees, so from outside an idle tab only shows the
 folder it started in. This adds a small block to your profile: at each prompt, if the folder
-changed, the tab writes it to data/shells/<process id>.txt, which terminals.py reads.
+changed, the tab writes it to data/shells/<process id>.txt, which terminals.py reads. It also
+adds each new one-line command to <process id>.commands, leaving out any that look like they
+hold a password or key (see SECRET). The commands stay on this PC and are only shown, never run.
 
 It's off until you turn it on from the tray, sits between two marker lines at the end of the
 profile, and turning it off takes out exactly that block. The first change keeps a backup.
@@ -19,6 +21,8 @@ BEGIN = "# >>> Shiori: reports this tab's folder, so it can come back in the rig
 END = "# <<< Shiori <<<"
 CSIDL_PERSONAL = 5  # Windows' number for your Documents folder
 BLOCKED = {"Restricted", "AllSigned"}  # PowerShell won't run an edited profile under these
+# A command with one of these is never written down. No single quotes: it sits inside a PowerShell string
+SECRET = r"pass|pwd|token|secret|key|auth|bearer|credential|://[^/\s]+@"
 
 
 def block(folder=SHELLS_DIR):
@@ -30,6 +34,13 @@ function global:prompt {{
         if ($PWD.Provider.Name -eq 'FileSystem' -and $PWD.ProviderPath -ne $global:ShioriFolder) {{
             $global:ShioriFolder = $PWD.ProviderPath
             [IO.File]::WriteAllText('{where}\\' + $PID + '.txt', $PWD.ProviderPath)
+        }}
+        $last = Get-History -Count 1
+        if ($last -and $last.Id -ne $global:ShioriCommand) {{
+            $global:ShioriCommand = $last.Id
+            if ($last.CommandLine -notmatch '{SECRET}' -and $last.CommandLine -notmatch '[\\r\\n]') {{
+                [IO.File]::AppendAllText('{where}\\' + $PID + '.commands', $last.CommandLine + [Environment]::NewLine)
+            }}
         }}
     }} catch {{}}
     & $global:ShioriPrompt
@@ -74,8 +85,7 @@ def _write(path, text, encoding):
 
 
 def add(path, folder=SHELLS_DIR):
-    if has_block(path):
-        return
+    remove(path)  # an older block is replaced by this version's
     text, encoding = _read(path)
     folder.mkdir(parents=True, exist_ok=True)
     gap = "\n" if text and not text.endswith("\n") else ""

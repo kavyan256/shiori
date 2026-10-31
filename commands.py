@@ -29,33 +29,35 @@ import store
 
 # --- any time ---
 # "save my desk", "new desk", "desk"; "park" was the first name and still works; Wispr sometimes hears "disk"
-PARK = re.compile(r"^(?:park|new park|desk|disk|(?:save|new|park)(?:\s+(?:my|this|the|a))?\s+(?:desk|disk))(?:\s+(?:this|everything|it all|all(?: of)?(?: this| these| it)?|these|now))?"
+PARK = re.compile(r"^(?:park|new park|desk|disk|take a break|save everything|save all this|save this|save what i have open|(?:save|new|park)(?:\s+(?:my|this|the|a|all))?\s+(?:desk|disk|tabs|work|stuff|session|windows))(?:\s+(?:this|everything|it all|all(?: of)?(?: this| these| it)?|these|now))?"
                   r"(?:\s+(?:as|called|named))?(?:[\s.,:;!?]+(?P<rest>.+))?$", re.I | re.S)
 # "resume" alone, "resume the last one", "pick up where I left off": the newest park
-RESUME_LAST = re.compile(r"^(?:resume|continue|go back|back to work|pick up where i left off)"
+RESUME_LAST = re.compile(r"^(?:resume|continue|back to work|pick up where i left off)"
                          r"(?:\s+(?:it|that|this|last|latest|the (?:last|latest)(?: one| park| desk)?|my (?:last|latest)(?: one| park| desk)?"
                          r"|where i left off))?$", re.I)
-RECAP = re.compile(r"^(?:what was i (?:doing|working on|up to)|where was i|where did i leave off|what'?s next|recap)$", re.I)
+RECAP = re.compile(r"^(?:remind me what i was doing|(?:remind me )?what was i (?:doing|working on|up to)|where was i|where did i leave off|what'?s next|recap)$", re.I)
 ADD_NOTE = re.compile(r"^add to (?:my|the) note[\s,:.-]+(?P<note>.+)$", re.I | re.S)
-SWITCH = re.compile(r"^(?:switch|move|change) to\s+(?P<name>.+)$", re.I)
-WEEK = re.compile(r"^(?:my week|this week|weekly view|show (?:me )?my week|what did i (?:work on|do) this week)$", re.I)
-SEARCH = re.compile(r"^(?:find|search(?:\s+(?:my\s+desks\s+)?for)?|look\s+(?:for|up)|which\s+desk\s+(?:has|had|have|is|was))\s+(?P<what>.+)$", re.I | re.S)
+SWITCH = re.compile(r"^(?:switch|swap|move|change) to\s+(?P<name>.+)$", re.I)
+WEEK = re.compile(r"^(?:week|my week|this week|weekly view|show (?:me )?my week|what did i (?:work on|do) this week)$", re.I)
+SEARCH = re.compile(r"^(?:find|search(?:\s+(?:my\s+desks\s+)?for)?|look\s+(?:for|up)|where(?:'s| is)|which\s+desk\s+(?:has|had|have|is|was))\s+(?P<what>.+)$", re.I | re.S)
 # after a restart or a crash: what Shiori quietly kept (see autosave.py)
-LAST_SESSION = re.compile(r"^(?:(?:resume|restore|recover|reopen|bring back|get back)\s+)?(?:my\s+|the\s+)?(?:last|previous)\s+session$", re.I)
+LAST_SESSION = re.compile(r"^(?:(?:resume|restore|recover|reopen|bring back|get back)\s+)?(?:(?:my|the)\s+(?:(?:last|previous)\s+)?|(?:last|previous)\s+)session$", re.I)
 FORGET_SESSION = re.compile(r"^(?:forget|delete|discard|ignore)\s+(?:my\s+|the\s+)?(?:last|previous)\s+session$", re.I)
-RESUME = re.compile(r"^(?:resume|retrieve|restore|back to|go back to|continue|switch to|open)\s+(?P<name>.+)$", re.I | re.S)
+RESUME = re.compile(r"^(?:resume|retrieve|restore|back to|go back to|get back to|bring back|pick up|load|reopen|continue|switch to|open)\s+(?P<name>.+)$", re.I | re.S)
 # "parts": Wispr often hears "parks" as "parts"
-LIST = re.compile(r"^(?:list|desks|disks|parks|parts|stages|(?:show|see|view)(?:ing)?(?: me)?(?: all)? (?:of )?(?:my |the )?"
+LIST = re.compile(r"^(?:list|(?:retrieve|open|load)(?: (?:my |a )?desks?)?$|what desks do i have|what have i saved|desks|disks|parks|parts|stages|(?:show|see|view)(?:ing)?(?: me)?(?: all)? (?:of )?(?:my |the )?"
                   r"(?:desks|disks|parks|parts|stages)|my (?:desks|disks|parks|parts|stages))\b", re.I)
+# "list dsa": what's in that desk. "list my desks" stays the list of desks.
+LIST_DESK = re.compile(r"^list\s+(?!(?:(?:all|my|the|of)\s+)*(?:desks|disks|parks|parts|stages)$)(?P<name>.+)$", re.I)
 # Polite lead-ins people say before a command: "let's resume coding", "can you show my desks"
 LEAD_IN = re.compile(r"^(?:(?:ok(?:ay)?|so|hey|please|now|and|alright|um+|uh+|erm?|hmm+|mm+|well|oh|"
-                     r"let'?s|let us|can you|could you|would you|i want to|i'd like to)[\s,]+)+", re.I)
+                     r"shiori|i'm done|i am done|let'?s|let us|can you|could you|would you|i want to|i'd like to)[\s,]+)+", re.I)
 # Nothing meant: fillers, and the phrases speech-to-text invents from silence ("Thank you.", "Thanks for watching!")
 NOISE = re.compile(r"^(?:(?:um+|uh+|huh|uh-?huh|mhm+|mm-?hmm|erm?|hmm+|mm+|ah+|oh|okay|ok|so|yeah|and|like|you|bye|thanks|thank you|"
                    r"thank you (?:so|very) much|thanks for watching|you're welcome|subtitles by[^.]*)[\s,.!?…]*)+$"
                    r"|^[\s,.!?…\-]*$", re.I)
 VIEW = re.compile(r"^(?:view|show|see|look at|details (?:of|for))\s+(?:me\s+)?(?:the\s+)?(?:(?:park|desk)\s+)?(?P<name>.+)$", re.I)
-DELETE = re.compile(r"^(?:delete|trash|forget|remove)\s+(?:the\s+)?(?:(?:park|desk)\s+)?(?P<name>.+)$", re.I)
+DELETE = re.compile(r"^(?:delete|trash|forget|remove|get rid of)\s+(?:the\s+)?(?:(?:park|desk)\s+)?(?P<name>.+)$", re.I)
 PIN = re.compile(r"^pin(?:\s+(?:this|it|the park|the desk|that))?(?:\s+(?:park|desk|preset))?(?:\s+(?P<name>.+))?$", re.I)
 UNPIN = re.compile(r"^unpin\s+(?:the\s+)?(?:(?:park|desk)\s+)?(?P<name>.+)$", re.I)
 START = re.compile(r"^(?:start|launch|set ?up|fire up|open (?:the )?preset)\s+(?:my\s+|the\s+)?(?P<name>.+?)"
@@ -64,9 +66,9 @@ HIDE_GUIDE = re.compile(r"^(?:hide|skip|close|dismiss)(?: the)? (?:guide|tips|ge
 # Ticking off a next step while a desk is on screen: "tick 1", "done with step 2", "untick 1"
 TICK_STEP = re.compile(r"^(?P<un>un)?(?:tick|check)(?: off)?(?: step| number)?\s+(?P<n>\w+)$"
                        r"|^(?:done|finished)(?: with)? (?:step|number) (?P<n2>\w+)$", re.I)
-UNDO = re.compile(r"^(?:undo|undo (?:that|it|this)|take (?:that|it) back)$", re.I)
+UNDO = re.compile(r"^(?:undo|go back|revert(?: that| it| this)?|undo (?:that|it|this)|take (?:that|it) back)$", re.I)
 # "…and clear": close what was parked afterwards. Only looked for at the end of a park/save command.
-AND_CLEAR = re.compile(r"(?:^|[\s,.]+)(?:and\s+)?(?:clear|close)(?:\s+(?:it all|everything|them|up|the desk|my desk))?$", re.I)
+AND_CLEAR = re.compile(r"(?:^|[\s,.]+)(?:and\s+)?(?:clear|close)(?:\s+(?:it all|it|this|all|everything|them|up|the desk|my desk|my tabs))?$", re.I)
 PARK_NAME_WORDS = re.compile(r"^(?:and\s+)?(?:save\s+(?:it\s+|this\s+)?)?(?:as|called|named)\s+", re.I)
 AND_SAVE = re.compile(r"[\s,.]+and\s+save(?:\s+it)?$", re.I)
 NO = re.compile(r"^(?:n|no+|nope|nah|back|go back|not that|cancel|keep(?: it)?|wait|stop|don'?t)\b", re.I)
@@ -75,17 +77,19 @@ YES = re.compile(r"^(?:y|ya|yah|yea|yeah|yes+|yep|yup|yas|confirm|do it|delete i
 DELETE_AGAIN = re.compile(r"^(?:delete|remove|trash)(?:\s+(?:it|that|this))?\b", re.I)
 # --- while a draft park is open ---
 # longer phrases first, so "add back chrome" isn't read as add "back chrome"
-DROP = re.compile(r"^(?:leave out|don'?t save|drop|remove|skip|exclude|untick)\s+(?P<what>.+)$", re.I)
+DROP = re.compile(r"^(?:leave out|don'?t save|drop|remove|skip|exclude|untick|uncheck)\s+(?P<what>.+)$", re.I)
 KEEP = re.compile(r"^(?:add back|bring back|keep|add|include|tick)\s+(?P<what>.+)$", re.I)
-BARE_PICK = re.compile(r"^(?P<verb>leave out|don'?t save|drop|remove|skip|exclude|untick|add back|bring back|keep|add|include|tick)$", re.I)
+BARE_PICK = re.compile(r"^(?P<verb>leave out|drop|remove|skip|exclude|untick|add back|bring back|keep|add|include|tick)$", re.I)
 # words a sentence doesn't end on: "I was" or "fixing the" was cut off mid-thought
 UNFINISHED = {"was", "were", "is", "am", "are", "the", "a", "an", "to", "and", "or", "but", "of", "for", "with",
               "my", "on", "in", "at", "as", "i", "we", "because"}
-SAVE = re.compile(r"^(?:(?:done|finished)[\s,.]+)?(?:save|name it|call it)"
+SAVE = re.compile(r"^(?:(?:done|finished|looks good|all good|perfect|great)[\s,.]+)?(?:save|name it|name this|call it|call this)"
                   r"(?:\s+(?:it|this|the park|park|(?:my |this |the )?(?:desk|disk)))?"
                   r"(?:\s+(?:as|called|named))?\s*(?P<name>.*)$", re.I | re.S)
+MISHEARD_SAVE = re.compile(r"^(?:steve|safe|shave|saved) as\s+", re.I)  # how speech-to-text has heard "save as"
+MAX_PICK_WORDS = 3 # "drop", "keep", "save" or "resume" with more words after it is a sentence, so a note
 DONE = re.compile(r"^(?:done|finish|finished|complete|that's it)$", re.I)  # alone only: "done with X" is a note
-CANCEL = re.compile(r"^(?:cancel|discard|never ?mind|throw (?:it|this) away)\b", re.I)
+CANCEL = re.compile(r"^(?:cancel(?: it| this| that)?|discard(?: it| this)?|forget (?:it|this)|don'?t save|never ?mind|throw (?:it|this) away)$", re.I)
 NOTE = re.compile(r"^(?:note|add (?:a )?note|my note is)\s*[:,-]?\s*(?P<note>.+)$", re.I | re.S)
 NUMBER_WORDS = {w: str(n) for n, w in enumerate(
     "zero one two three four five six seven eight nine ten eleven twelve".split())}
@@ -225,6 +229,8 @@ def parse(text):
         return ("undo",)
     if HIDE_GUIDE.match(text):
         return ("hide_guide",)
+    if m := LIST_DESK.match(text):
+        return ("view", clean_name(m["name"]))
     if LIST.match(text):
         return ("list",)
     if m := TICK_STEP.match(text):
@@ -249,6 +255,8 @@ def parse(text):
     if m := SEARCH.match(text):
         return ("search", m["what"])
     short, clear = split_clear(text)
+    if re.fullmatch(r"(?:save)?", short, re.I):
+        return ("park", "", "", clear)  # "save", "clear", "clear my desk", "save and clear"
     if m := PARK.match(short):
         # "park and save as coding" / "park coding and save": the name is coding; saving stays its own step
         rest = PARK_NAME_WORDS.sub("", AND_SAVE.sub("", (m["rest"] or "").strip()))
@@ -275,32 +283,38 @@ def parse(text):
 def parse_draft(text):
     """Commands while a draft park is open; anything unrecognised is the note.
     -> ('drop'|'keep', what) | ('save', name or '') | ('cancel',) | ('note', text) | any parse() command"""
-    said = without_repeat(LEAD_IN.sub("", text.strip()).rstrip(".!?"))
+    text = MISHEARD_SAVE.sub("save as ", text.strip())
+    said = without_repeat(LEAD_IN.sub("", text).rstrip(".!?"))
     if NOISE.match(said):
         return ("noise",)
     if UNDO.match(said):
         return ("undo",)
+    if CANCEL.match(said):
+        return ("cancel",)
     if m := BARE_PICK.match(said):
         return ("which", m["verb"].lower())
-    if m := DROP.match(said):
+    # a longer sentence is a note: "keep working on the parser next time"
+    if (m := DROP.match(said)) and len(m["what"].split()) <= MAX_PICK_WORDS:
         return ("drop", m["what"])
-    if m := KEEP.match(said):
+    if (m := KEEP.match(said)) and len(m["what"].split()) <= MAX_PICK_WORDS:
         return ("keep", m["what"])
     short, clear = split_clear(said)
     if clear and not short:
         return ("save", "", True)  # just "clear"
-    if m := SAVE.match(short):
+    if not clear and short.lower() not in ("save this", "save everything") and (again := PARK.fullmatch(short)) and not again["rest"]:
+        return ("park", "")  # "save my desk" again, or Wispr repeating it: stay on the draft
+    m = SAVE.match(short)
+    if m and not (re.match(r"save\s+(?!as\b|called\b|named\b)", short, re.I) and len(m["name"].split()) > MAX_PICK_WORDS):
         if not clean_name(m["name"]) and re.search(r"\b(?:as|called|named|name it|call it)$", short, re.I):
             return ("save_ask", clear)  # "save as" and then nothing: ask for the name, don't guess
-        return ("save", saved_name(m["name"]), clear)
+        name = saved_name(m["name"])
+        return ("save", "" if re.fullmatch(r"(?:my|the|this) (?:desk|tabs|work)", name, re.I) else name, clear)
     if DONE.match(short):
         return ("save", "", clear)
-    if CANCEL.match(said):
-        return ("cancel",)
     if m := NOTE.match(text.strip()):
         return ("note", m["note"], True)  # "note: …" said on purpose: kept even if short
     command = parse(text)
-    if command[0] in ("list", "resume", "view", "start"):
+    if command[0] in ("list", "view", "start") or (command[0] == "resume" and len(command[1].split()) <= MAX_PICK_WORDS):
         return command
     if command[0] == "pin":
         return ("pin_draft",)  # can't pin what isn't saved yet

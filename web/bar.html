@@ -118,6 +118,15 @@
   .row:hover { background: var(--raised); }
   .row.sel { background: var(--raised); box-shadow: inset 2px 0 0 var(--accent); }
   /* keyboard users can always see where they are (mouse clicks don't show the ring) */
+  .fieldrow { display: block; margin: 10px 0 12px; font: 400 13px "Segoe UI Variable Text", "Segoe UI", sans-serif; color: var(--muted); }
+  .fieldrow input, .fieldrow textarea { display: block; box-sizing: border-box; width: 100%; margin-top: 5px; padding: 9px 11px;
+    border-radius: 8px; font: 400 15px/1.45 "Segoe UI Variable Text", "Segoe UI", sans-serif;
+    color: var(--text); background: var(--raised); border: 1px solid var(--line); outline: none; resize: none;
+    transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease); }
+  .fieldrow textarea { min-height: 62px; }
+  .fieldrow input::placeholder, .fieldrow textarea::placeholder { color: var(--faint); }
+  .fieldrow input:hover, .fieldrow textarea:hover { border-color: var(--line-strong); }
+  .fieldrow input:focus, .fieldrow textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   button:focus-visible, [data-say]:focus-visible, [data-toggle]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .row.static { cursor: default; } .row.static:hover { background: none; }
   .row .num { color: var(--faint); width: 18px; text-align: right; font-size: 12px; flex: none; }
@@ -444,6 +453,8 @@ function guideCard(progress) {
   </div>`;
 }
 
+let showDesks = false;  // home: the list of desks, once you've chosen Retrieve or asked for it
+
 // ---- each view ---------------------------------------------------------------------
 const views = {
   home(s) {
@@ -460,6 +471,9 @@ const views = {
     if (!s.parks.length) return `<section>${msg}${session}<div class="empty-state">No desks saved yet.<br>
       Say <b>“Save my desk”</b> to save what's open, drop what you don't need, then <b>“save as coding”</b>.<br>
       Later: <b>“resume coding”</b>.</div>${parkButton}${draft}</section>`;
+    if (!showDesks) return `<section>${msg}${session}<div class="actions">
+      <button class="primary" data-say="save my desk">${s.draft ? "Back to unsaved desk" : "Save desk"}</button>
+      <button class="primary" data-showdesks>Retrieve desk</button></div>${draft}</section>`;
     return `<section>${msg}${session}<div class="label">Your desks · ↑↓ Enter to resume · click to view</div>
       <div class="scroll stagger">${s.parks.map((p, i) => parkRow(p, i)).join("")}</div>${parkButton}${draft}</section>`;
   },
@@ -468,17 +482,19 @@ const views = {
     const total = s.groups.reduce((n, g) => n + g.items.length, 0);
     const kept = s.groups.reduce((n, g) => n + g.items.filter(i => i.keep).length, 0);
     const name = s.name || s.suggested;  // "save" alone uses the suggestion
-    return `<section><h2>New desk <span class="sub">→ ${esc(name)}${s.name ? "" : " (suggested)"}</span><span class="tag">not saved</span></h2>
-      ${noteBlock(s.note, s.steps, "", s.cues, { voice: true })}
-      <div class="scroll stagger-rows">${groupsBlock(s.groups, true)}</div>
+    return `<section><h2>New desk <span class="tag">not saved</span></h2>
+      <label class="fieldrow">Name <input id="deskName" spellcheck="false" value="${esc(s.name)}" placeholder="${esc(s.suggested)}"></label>
+      <label class="fieldrow">Note <textarea id="deskNote" rows="2" placeholder="What were you doing, and what's next? Click here and speak or type">${esc(s.note)}</textarea></label>
+      ${s.steps.length ? `<div class="note">${s.steps.map(t => `<div class="step"><span class="dot"></span>${esc(t)}</div>`).join("")}</div>` : ""}
+      ${cueBlock(s.cues)}
+      <div class="scroll stagger-rows" style="max-height:170px">${groupsBlock(s.groups, true)}</div>
       ${s.no_tabs.length ? `<div class="warn">${esc(s.no_tabs.join(" and "))} shows only the tab in front. Add the Shiori extension to pick tabs.</div>` : ""}
       ${s.message ? `<div class="msg">${esc(s.message)}</div>` : ""}
       <div class="actions">
         ${kept ? `<button class="primary" data-say="${s.clear ? "save and clear" : "save"}">${s.clear ? "Save and clear" : "Save"} as ${esc(name)} · ${kept} of ${total}</button>`
                : `<button class="primary" disabled>Nothing ticked · tick something to save</button>`}
         ${s.clear ? `<button data-say="save" ${kept ? "" : "disabled"}>Save, keep open</button>` : `<button data-say="save and clear" title="Save, then close what you saved" ${kept ? "" : "disabled"}>Save and clear</button>`}
-        <button data-say="cancel">Cancel</button></div>
-      <div class="foot">“drop 3” · say your note · “save” · “save as coding” · “save and clear” · ↑↓ Space to tick</div></section>`;
+        <button data-say="cancel">Cancel</button></div></section>`;
   },
 
   ask(s) { return ""; },
@@ -495,7 +511,7 @@ const views = {
     // after saving, the long list folds into one line per group; the full list is a click away
     const items = saved
       ? `<div class="pills stagger" style="margin-top:10px">${s.groups.map((g, i) => `<span class="pill" style="--i:${i}">${esc(g.label)} · ${g.items.length}</span>`).join("")}</div>
-         <details><summary>Show the ${plural(total, "saved item")}${esc((s.message.match(/· version \d+/) || [""])[0].replace("·", " ·"))}</summary>${groupsBlock(s.groups, false)}</details>`
+         <details><summary>Show the ${plural(total, "saved item")}${esc((s.message.match(/· version \d+/) || [""])[0].replace("·", " ·"))}</summary><div class="scroll">${groupsBlock(s.groups, false)}</div></details>`
       : `<div class="scroll">${groupsBlock(s.groups, false)}</div>`;
     const pinned = pinnedCount ? `<details><summary>Preset: ${plural(pinnedCount, "pinned item")} open on “start ${esc(s.name)}”</summary>
       ${groupsBlock(s.pinned, false)}</details>` : "";
@@ -554,7 +570,7 @@ const views = {
 
 const PLACEHOLDER = {
   home: "save my desk · show my desks · resume coding · start dsa",
-  draft: "drop 3 · your note · save as coding",
+  draft: "Say a command: drop 3 · save · save and clear",
   ask: "coding, acads, dsa…",
   park: "resume · pin this · start · delete",
   confirm: "yes / no",
@@ -563,6 +579,7 @@ const PLACEHOLDER = {
 
 // ---- drawing ------------------------------------------------------------------------
 function render(s, { fresh = false } = {}) {
+  if (fresh) showDesks = false;  // each time the bar opens: the Save / Retrieve choice first
   const changedView = fresh || s.view !== state.view;
   state = s;
   $("ask").hidden = s.view !== "ask";
@@ -596,6 +613,8 @@ function playOpening() {
 }
 
 // Ask Python to resize the window to what's drawn (after layout settles)
+view.addEventListener("toggle", () => fit(), true);  // an opened list needs a taller bar; toggle doesn't bubble
+
 function fit() {
   requestAnimationFrame(() => pywebview.api.resize(Math.ceil($("wrap").getBoundingClientRect().height)));
 }
@@ -663,6 +682,7 @@ async function submit(text = q.value) {
   q.value = "";
   sizeInput();
   updateChip();
+  if (text === "list" || /\bdesks\b|^\s*(?:retrieve|open|load)(?:\s+(?:my\s+|a\s+)?desk)?[\s.!]*$/i.test(text)) showDesks = true;
   render(await call("submit", text));
   if (queued) {
     const next = queued;
@@ -713,7 +733,48 @@ q.addEventListener("keydown", e => {
 
 async function toggleRow(i) { render(await call("toggle", i)); }
 
+// The draft's Name and Note: kept as you type, or as Wispr pastes into them. Nothing here runs a command.
+// The save screen has no command box: the cursor waits in Note. Spoken or pasted alone, these short words act.
+const NOTE_COMMAND = /^\s*(save|clear|cancel)[\s.!]*$/i;
+function noteCommand(box) {
+  const m = box.id === "deskNote" && box.value.match(NOTE_COMMAND);
+  if (!m) return false;
+  box.value = "";
+  pywebview.api.set_fields($("deskName").value, "").then(() => submit(m[1]));
+  return true;
+}
+view.addEventListener("paste", e => {
+  // one word pasted on its own acts even when the note already has text, which stays as it is
+  const pasted = e.target.id === "deskNote" && (e.clipboardData?.getData("text") || "").match(NOTE_COMMAND);
+  if (!pasted) return;
+  e.preventDefault();
+  submit(pasted[1]);
+});
+view.addEventListener("keydown", e => {
+  if (e.key === "Escape") return pywebview.api.hide();
+  if (e.key !== "Enter" || e.shiftKey || !e.target.matches("#deskName, #deskNote")) return;
+  e.preventDefault();
+  if (!noteCommand(e.target)) submit("save");
+});
+const renderScreen = render;
+render = (s, opts) => {
+  renderScreen(s, opts);
+  const saving = s.view === "draft";
+  field.style.display = saving ? "none" : "";
+  if (saving) setTimeout(() => { if (!document.activeElement?.matches("#deskName, #deskNote")) $("deskNote")?.focus(); fit(); }, 60);
+};
+
+view.addEventListener("input", e => {
+  if (e.target.id === "deskName" || e.target.id === "deskNote")
+    pywebview.api.set_fields($("deskName").value, $("deskNote").value);
+});
+
 view.addEventListener("click", async e => {
+  if (e.target.closest("[data-showdesks]")) {
+    showDesks = true;
+    render(state);
+    return q.focus();
+  }
   const groupCheck = e.target.closest("[data-groupcheck]");
   if (groupCheck) {
     e.stopPropagation();

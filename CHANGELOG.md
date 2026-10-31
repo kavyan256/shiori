@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.2 · 31 Oct 2026
+
+- **Save or Retrieve:** the bar opens with two buttons.
+- **Name and Note boxes:** the save screen has a box for each, and nothing typed there runs as a command.
+- **One-word commands:** save, clear, cancel, retrieve, or just a desk's name.
+- **More natural phrasing,** Hindi desk names, and notes that start with "cancel" no longer throw the draft away.
+- **Reminders:** a nudge to save after two hours, and a suggestion of the desk you usually use at this time.
+- **Terminals:** an optional record of each PowerShell tab's recent commands. cargo, go and dotnet no longer re-run.
+- **Office:** Word returns to your cursor, and the empty app window closes with the last file.
+
 ## 1.3.1 · 31 Oct 2026
 
 - **Unsaved work:** clearing or switching desks now saves first, then asks before closing windows that may have unsaved work.

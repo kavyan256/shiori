@@ -26,7 +26,7 @@ import win32gui
 import win32process
 
 import limits
-from psprofile import SHELLS_DIR
+from psprofile import SECRET, SHELLS_DIR
 
 SHELLS = {"powershell.exe", "pwsh.exe", "cmd.exe", "bash.exe", "nu.exe"}
 HELPERS = {"conhost.exe", "openconsole.exe"}
@@ -37,7 +37,7 @@ RERUN_OK = re.compile(
     r"|npx (?:vite|next dev|nodemon|serve|http-server)\b|(?:next dev|vite|nodemon|astro dev|ng serve)\b"
     r"|python3? -m (?:http\.server|flask run|uvicorn|streamlit run|jupyter)\b"
     r"|(?:uvicorn|flask run|streamlit run|jupyter (?:lab|notebook))\b"
-    r"|docker[ -]compose up\b|docker compose up\b|cargo (?:run|watch)\b|go run\b|dotnet (?:run|watch)\b"
+    r"|docker[ -]compose up\b|docker compose up\b"
     r"|hugo server\b|php artisan serve\b|rails s(?:erver)?\b)", re.I)
 
 
@@ -90,10 +90,22 @@ def reported_folder(shell):
     return folder if limits.exist([folder], limits.FILE_SECONDS)[folder] else ""
 
 
+def recent_commands(shell, count=5):
+    """This tab's last commands, newest last, if it reported any (see psprofile.py)."""
+    path = SHELLS_DIR / f"{shell.pid}.commands"
+    try:
+        if path.stat().st_mtime < shell.create_time():
+            return []
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, ValueError, psutil.Error):
+        return []
+    return [line for line in lines if line.strip() and not re.search(SECRET, line, re.I)][-count:]
+
+
 def tidy():
     """Forget the reports of tabs that have closed."""
     if SHELLS_DIR.exists():
-        for path in SHELLS_DIR.glob("*.txt"):
+        for path in [*SHELLS_DIR.glob("*.txt"), *SHELLS_DIR.glob("*.commands")]:
             if path.stem.isdigit() and not psutil.pid_exists(int(path.stem)):
                 path.unlink(missing_ok=True)
 
@@ -133,7 +145,7 @@ def current():
                     command = describe(child)
                     folder = child.cwd() or folder  # more accurate than the shell's own
                     break
-                out.append(item(name, folder, command, **environment(shell)))
+                out.append(item(name, folder, command, **environment(shell)) | {"recent": recent_commands(shell)})
             except psutil.Error:
                 continue  # it closed while we looked, or it's an admin shell
     return out

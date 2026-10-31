@@ -169,6 +169,8 @@ class Controller:
             return self.tick_step(command[1], command[2])
         if command[0] == "view":
             return self.view(command[1])
+        if store.load(text.rstrip(".!? ")):
+            return self.resume(text.rstrip(".!? "))  # just the desk's name
         return self.not_understood(text)
 
     def not_understood(self, text):
@@ -253,6 +255,12 @@ class Controller:
                 tab["keep"] = bool(signatures(tab) & sigs)
         self.draft["items"] = others + new_tabs
         return self.draft_view(f"{browser_name.title()} tabs added.")
+
+    def set_fields(self, name, note):
+        """The draft's Name and Note boxes: taken exactly as typed, never read as commands."""
+        if self.draft:
+            self.draft["name"], self.draft["note"] = name.strip(), note.strip()
+            self.draft["at"] = time.time()
 
     def set_note(self, text, on_purpose=True):
         """Your note. A scrap that stops mid-thought ('I was', 'dr') never replaces it: that's
@@ -521,7 +529,10 @@ class Controller:
     def current_desk(self):
         """The desk you mean by "my note": the one on screen, the one you resumed, else the newest."""
         stages = store.list_stages()
-        return self.viewing or self.working_on or (stages[0]["name"] if stages else None)
+        for name in (self.viewing, self.working_on):
+            if name and store.load(name):  # it may have been deleted since
+                return name
+        return stages[0]["name"] if stages else None
 
     def recap(self):
         """'what was I doing?': your note and next steps, with nothing reopened."""
@@ -554,8 +565,11 @@ class Controller:
             if last["parked_at"] < since:
                 continue
             todo = [s for n, s in enumerate(last["next_steps"]) if n not in last.get("done", [])]
+            saves = sum(1 for s in stage["snapshots"] if s["parked_at"] >= since)
+            ticked = len(last.get("done", []))
+            did = f"saved {saves}×" + (f", {ticked} done" if ticked else "")
             detail = f"{len(todo)} to do · next: {todo[0]}" if todo else "nothing left to do"
-            lines.append({"text": f"{stage['name']} · {detail}", "say": f"view {stage['name']}", "park": True})
+            lines.append({"text": f"{stage['name']} · {did} · {detail}", "say": f"view {stage['name']}", "park": True})
         return {"view": "message", "title": "Your week · click or say one",
                 "lines": lines or ["No desks saved in the last 7 days."]}
 
@@ -767,7 +781,8 @@ def row_meta(item):
     if kind(item) == "terminal":
         python = item.get("conda") or (item.get("venv") and "venv")
         place = "" if not item["command"] else "reruns on resume" if item.get("rerun") else "folder only (not re-run)"
-        return " · ".join(p for p in (python, place) if p)
+        last = f"last: {item['recent'][-1][:40]}" if item.get("recent") else ""
+        return " · ".join(p for p in (python, place, last) if p)
     if kind(item) == "file":
         parts = [item.get("where_text", "")] + (["unsaved changes"] if item.get("unsaved") else [])
         return " · ".join(p for p in parts if p)

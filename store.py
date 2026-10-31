@@ -33,7 +33,7 @@ TRASH_DAYS = 30     # deleted desks stay this long, so a mistake can still be pu
 
 def slug(name):
     """'College DBMS!' -> 'college-dbms', safe to use as a filename."""
-    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return re.sub(r"[^\w\u0900-\u097f]+|_+", "-", name.lower()).strip("-")  # Hindi names too
 
 
 def path_of(name):

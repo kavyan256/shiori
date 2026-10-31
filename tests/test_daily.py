@@ -30,4 +30,5 @@ def test_switch_saves_this_desk_then_resumes(shiori):
 
 
 def test_week_lists_recent_desks(shiori):
-    assert len(shiori.say("my week")["lines"]) == 4
+    lines = shiori.say("my week")["lines"]
+    assert len(lines) == 4 and all("saved 1×" in line["text"] for line in lines)

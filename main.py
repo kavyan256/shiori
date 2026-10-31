@@ -37,6 +37,7 @@ from PIL import Image, ImageDraw
 import autosave
 import browser
 import desk
+import habits
 import onboarding
 import paths
 import psprofile
@@ -95,6 +96,9 @@ class Api:
 
     def set_many(self, indexes, keep):
         return self._safe(controller.set_many, indexes, keep)
+
+    def set_fields(self, name, note):
+        return self._safe(controller.set_fields, name, note)
 
     def names(self):
         return self._safe(controller.names)
@@ -388,6 +392,14 @@ def set_powershell_folders(on):
         win32api.MessageBox(0, "Done. Terminal tabs you open from now on will remember their folder.", TITLE)
 
 
+def suggest_saving():
+    icon.notify(f"You've been working a while. Press {settings.get('hotkey')} and say “save my desk”.", "Shiori")
+
+
+def suggest_desk(name):
+    icon.notify(f"You usually work on {name} around now. Press {settings.get('hotkey')} and say “resume {name}”.", "Shiori")
+
+
 def tell_about_update(version):
     log.info("new version out: %s", version)
     icon.notify(f"Shiori {version.lstrip('vV')} is out. Right-click the tray icon to get it.", "Shiori")
@@ -439,6 +451,8 @@ def start_tray():
             checked=lambda item: psprofile.is_on()),
         pystray.MenuItem("Save automatically", lambda item: settings.change("autosave", not settings.get("autosave")),
                          checked=lambda item: settings.get("autosave")),
+        pystray.MenuItem("Remind me to save", lambda item: settings.change("save_reminders", not settings.get("save_reminders")),
+                         checked=lambda item: settings.get("save_reminders")),
         pystray.MenuItem("Start with Windows", lambda item: set_start_with_windows(not starts_with_windows()),
                          checked=lambda item: starts_with_windows()),
         pystray.Menu.SEPARATOR,
@@ -524,10 +538,11 @@ def on_started():
     threading.Thread(target=listen_for_hotkey, daemon=True).start()
     threading.Thread(target=tidy_up, daemon=True).start()
     autosave.at_start()
-    threading.Thread(target=autosave.keep_saving, daemon=True).start()
+    threading.Thread(target=autosave.keep_saving, kwargs={"remind": suggest_saving}, daemon=True).start()
     threading.Thread(target=health_log, args=(float(os.environ.get("SHIORI_HEALTH_EVERY", 3600)),), daemon=True).start()
     start_tray()
     threading.Thread(target=updates.keep_checking, args=(tell_about_update,), daemon=True).start()
+    threading.Thread(target=habits.keep_watching, args=(suggest_desk,), daemon=True).start()
     if first:  # say hello: a Windows notification, and the bar opens once with the guide
         log.info("first run: showing the guide")
         try:

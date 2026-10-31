@@ -24,6 +24,7 @@ FILE = paths.DATA / "last-session.json"
 RECOVERED = paths.DATA / "recovered-session.json"
 EVERY = 300        # seconds between quiet saves
 KEEP_DAYS = 3      # older than this, it's no use to anyone
+REMIND_AFTER = 2 * 3600  # seconds without a saved desk before suggesting one
 
 log = logging.getLogger("shiori")
 
@@ -64,15 +65,28 @@ def save_now():
     return write(current_items(), layout.of(list_windows()))
 
 
-def keep_saving(every=EVERY):
-    """Runs for as long as Shiori does."""
+def reminder_due(since_reminder, now=None):
+    """True once you've gone REMIND_AFTER without saving a desk or being reminded."""
+    now = now or datetime.now()
+    parks = store.list_stages()
+    last = max([since_reminder] + ([datetime.fromisoformat(parks[0]["snapshots"][-1]["parked_at"])] if parks else []))
+    return now - last >= timedelta(seconds=REMIND_AFTER)
+
+
+def keep_saving(every=EVERY, remind=None):
+    """Runs for as long as Shiori does. remind() is called when it's time to suggest a save."""
+    reminded = datetime.now()
     while True:
         time.sleep(every)
-        if settings.get("autosave"):
-            try:
+        try:
+            if settings.get("autosave"):
                 save_now()
-            except Exception:  # never let a quiet save take Shiori down
-                log.exception("quiet save failed")
+            if remind and settings.get("save_reminders") and reminder_due(reminded):
+                reminded = datetime.now()
+                if any(i.get("keep", True) for i in current_items()):
+                    remind()
+        except Exception:  # never let a quiet save take Shiori down
+            log.exception("quiet save failed")
 
 
 def at_start():

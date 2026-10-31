@@ -91,6 +91,17 @@ def test_forget_last_session(shiori):
     assert autosave.offer() is None
 
 
+def test_a_reminder_waits_two_hours():
+    start = datetime.now()
+    assert not autosave.reminder_due(start, start + timedelta(hours=1))
+    assert autosave.reminder_due(start, start + timedelta(hours=2))
+
+
+def test_a_saved_desk_restarts_the_wait(shiori):
+    long_ago = datetime.now() - timedelta(hours=5)
+    assert not autosave.reminder_due(long_ago)
+
+
 def test_session_words_reach_the_right_command():
     assert parse("restore last session")[0] == "last_session"
     assert parse("Restore my last session.")[0] == "last_session"

@@ -4,13 +4,14 @@
   hotkey         the keys that open Shiori, one of HOTKEYS
   autosave       quietly keep what's open, for after a restart or a crash (see autosave.py)
   check_updates  ask GitHub once a day whether a newer version is out (see updates.py)
+  save_reminders suggest saving a desk after two hours without one
 """
 import json
 
 import paths
 
 FILE = paths.DATA / "settings.json"
-DEFAULTS = {"desk_pictures": True, "hotkey": "Ctrl+Alt+S", "autosave": True, "check_updates": True}
+DEFAULTS = {"desk_pictures": True, "hotkey": "Ctrl+Alt+S", "autosave": True, "check_updates": True, "save_reminders": True}
 
 # The choices offered in the tray. Kept to a short list of combinations that are rarely
 # taken by other apps, so you can't pick one that silently never works.

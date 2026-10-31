@@ -5,7 +5,7 @@
 
 Office answers through COM (the same channel Office's own add-ins use) while it's
 running. On resume Shiori asks Office to open each file and go back to the same
-sheet and cell (Excel) or slide (PowerPoint).
+sheet and cell (Excel), slide (PowerPoint) or cursor position (Word).
 
 Note: an Office app you started yourself only answers COM after it has lost focus
 once. Pressing Shiori's hotkey does exactly that, so parking sees your files.
@@ -35,6 +35,9 @@ APPS = {  # exe -> (COM name, list of open files)
 }
 
 
+WORD_PAGE_NUMBER = 3  # Word's wdActiveEndPageNumber
+
+
 def _where(exe, doc):
     """The sheet + cell, or slide, you were on. Best effort: Office can refuse while busy."""
     try:
@@ -43,6 +46,9 @@ def _where(exe, doc):
             return {"sheet": doc.ActiveSheet.Name, "cell": cell.replace("$", "")}
         if exe == "powerpnt.exe":
             return {"slide": doc.Windows(1).View.Slide.SlideIndex}
+        if exe == "winword.exe":
+            selection = doc.Windows(1).Selection
+            return {"position": selection.Start, "page": selection.Information(WORD_PAGE_NUMBER)}
     except Exception:
         pass
     return {}
@@ -53,6 +59,8 @@ def _describe_where(where):
         return f"{where['sheet']}!{where['cell']}"
     if "slide" in where:
         return f"slide {where['slide']}"
+    if "page" in where:
+        return f"page {where['page']}"
     return ""
 
 
@@ -105,6 +113,8 @@ def _close(path):
                         doc.Close()  # PowerPoint's Close takes no arguments
                     else:
                         doc.Close(False)  # False: don't save (there's nothing to save)
+                    if getattr(app, collection).Count == 0:
+                        app.Quit()  # no other files open: don't leave an empty window behind
                     return True
         except Exception:
             continue
@@ -149,6 +159,8 @@ def _open_in_office(f):
             app.Range(where["cell"]).Select()
         elif "slide" in where:
             doc.Windows(1).View.GotoSlide(where["slide"])
+        elif "position" in where:
+            doc.Range(where["position"], where["position"]).Select()
         _bring_forward(app)
     except Exception as e:
         log.info("office: opening %s through COM failed (%s), launching the app instead", f["title"], e)

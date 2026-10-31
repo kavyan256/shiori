@@ -49,6 +49,11 @@ def test_commands_that_are_not_safe_never_run_even_with_an_environment():
     assert "git push" not in args[3]
 
 
+def test_commands_that_start_any_program_are_not_rerun():
+    for command in ("cargo run", "go run .", "dotnet run"):
+        assert not terminals.RERUN_OK.match(command)
+
+
 def test_bash_reruns_safe_commands_and_stays_open():
     assert terminals._shell_args(tab("bash.exe", "npm run dev")) == ["bash.exe", "-lc", "npm run dev\\; exec bash"]
 
@@ -135,6 +140,40 @@ def test_the_block_really_reports_the_folder_and_keeps_your_prompt(tmp_path):
     lines = done.stdout.split()
     assert lines[0] == "MINE>"
     assert (tmp_path / f"{lines[1]}.txt").read_text(encoding="utf-8") == r"C:\Windows"
+
+
+def test_the_block_writes_commands_but_not_secrets(tmp_path):
+    """A real PowerShell, running only this scratch file."""
+    script = tmp_path / "profile.ps1"
+    script.write_text("function prompt { 'MINE> ' }\n", encoding="utf-8")
+    psprofile.add(script, tmp_path)
+    (tmp_path / "go.ps1").write_text("", encoding="utf-8")
+    fake = (". '{0}'\n"
+            "function Get-History {{ param($Count) [pscustomobject]@{{Id=$global:n; CommandLine=$global:line}} }}\n"
+            "$global:n=1; $global:line='pytest tests'; prompt | Out-Null\n"
+            "$global:n=2; $global:line='login --password hunter2'; prompt | Out-Null\n"
+            "prompt | Out-Null\n$PID\n").format(script)
+    run = tmp_path / "run.ps1"
+    run.write_text(fake, encoding="utf-8")
+    done = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(run)],
+                          capture_output=True, text=True, timeout=30)
+    pid = done.stdout.split()[-1]
+    assert (tmp_path / f"{pid}.commands").read_text(encoding="utf-8").split("\n")[0].strip() == "pytest tests"
+    assert "hunter2" not in (tmp_path / f"{pid}.commands").read_text(encoding="utf-8")
+
+
+def test_recent_commands_skip_secrets_and_the_row_shows_the_last(tmp_path, monkeypatch):
+    monkeypatch.setattr(terminals, "SHELLS_DIR", tmp_path)
+    (tmp_path / "7.commands").write_text("git status\nset API_KEY=abc\npytest\n", encoding="utf-8")
+    assert terminals.recent_commands(Shell(7)) == ["git status", "pytest"]
+    assert "last: pytest" in controller.row_meta(tab(recent=["pytest"]))
+
+
+def test_adding_replaces_an_older_block(tmp_path):
+    path = tmp_path / "profile.ps1"
+    path.write_text(f"{psprofile.BEGIN}\nstale-line\n{psprofile.END}\n", encoding="utf-8")
+    psprofile.add(path, tmp_path)
+    assert "stale-line" not in path.read_text(encoding="utf-8")
 
 
 def test_two_browser_windows_come_back_as_two(monkeypatch):
